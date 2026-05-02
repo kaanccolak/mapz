@@ -1,12 +1,97 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import { DEPARTURE_AIRPORT_OPTIONS } from '@/lib/departure-airports';
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
+import { ALLOWED_DEPARTURE_IATA } from '@/lib/departure-airports';
 import { searchDestinations, type Airport, type Destination } from '@/lib/destinations';
-import type { DepartureIata, PlanRequest } from '@/types';
+import type { BudgetIncludes, DepartureIata, PlanRequest } from '@/types';
 
 const PLAN_REQUEST_KEY = 'planRequest';
+
+const DEPARTURE_AIRPORTS: { code: DepartureIata; name: string }[] = [
+  { code: 'IST', name: 'İstanbul (IST) — Atatürk' },
+  { code: 'SAW', name: 'İstanbul (SAW) — Sabiha Gökçen' },
+  { code: 'ADB', name: 'İzmir (ADB) — Adnan Menderes' },
+  { code: 'ESB', name: 'Ankara (ESB) — Esenboğa' },
+  { code: 'AYT', name: 'Antalya (AYT)' },
+  { code: 'COV', name: 'Adana (COV) — Çukurova Uluslararası' },
+  { code: 'TZX', name: 'Trabzon (TZX)' },
+  { code: 'BJV', name: 'Bodrum (BJV) — Milas' },
+  { code: 'DLM', name: 'Dalaman (DLM)' },
+  { code: 'GZT', name: 'Gaziantep (GZT) — Oğuzeli' },
+  { code: 'ASR', name: 'Kayseri (ASR) — Erkilet' },
+  { code: 'NAV', name: 'Nevşehir (NAV) — Kapadokya' },
+  { code: 'KYA', name: 'Konya (KYA)' },
+  { code: 'MLX', name: 'Malatya (MLX) — Erhac' },
+  { code: 'ERZ', name: 'Erzurum (ERZ)' },
+  { code: 'DIY', name: 'Diyarbakır (DIY)' },
+  { code: 'VAN', name: 'Van (VAN) — Ferit Melen' },
+  { code: 'SZF', name: 'Samsun (SZF) — Çarşamba' },
+  { code: 'VAS', name: 'Sivas (VAS)' },
+  { code: 'KSY', name: 'Kars (KSY)' },
+  { code: 'ERC', name: 'Erzincan (ERC)' },
+  { code: 'MQM', name: 'Mardin (MQM)' },
+  { code: 'BAL', name: 'Batman (BAL)' },
+  { code: 'IGD', name: 'Iğdır (IGD)' },
+  { code: 'MSR', name: 'Muş (MSR)' },
+  { code: 'SFQ', name: 'Şanlıurfa (SFQ) — GAP' },
+  { code: 'KCM', name: 'Kahramanmaraş (KCM)' },
+  { code: 'ISE', name: 'Isparta (ISE) — Süleyman Demirel' },
+  { code: 'USQ', name: 'Uşak (USQ)' },
+  { code: 'KZR', name: 'Kütahya (KZR) — Zafer' },
+  { code: 'BZI', name: 'Balıkesir (BZI) — Merkez' },
+  { code: 'EDO', name: 'Balıkesir (EDO) — Edremit' },
+  { code: 'CKZ', name: 'Çanakkale (CKZ)' },
+  { code: 'TEQ', name: 'Tekirdağ (TEQ) — Çorlu' },
+  { code: 'AOE', name: 'Eskişehir (AOE)' },
+  { code: 'AFY', name: 'Afyonkarahisar (AFY)' },
+  { code: 'ADF', name: 'Adıyaman (ADF)' },
+  { code: 'TJK', name: 'Tokat (TJK)' },
+  { code: 'MZH', name: 'Amasya (MZH) — Merzifon' },
+  { code: 'KFS', name: 'Kastamonu (KFS)' },
+  { code: 'ONQ', name: 'Zonguldak (ONQ)' },
+  { code: 'BOL', name: 'Bolu (BOL) — Dursunbey' },
+  { code: 'GNY', name: 'Şanlıurfa (GNY) — Güneydoğu Anadolu' },
+  { code: 'AJI', name: 'Ağrı (AJI)' },
+  { code: 'HTY', name: 'Hatay (HTY)' },
+  { code: 'GKD', name: 'Gökçeada (GKD)' },
+  { code: 'BXN', name: 'Bodrum (BXN) — İmsık' },
+  { code: 'YEI', name: 'Bursa (YEI) — Yenişehir' },
+  { code: 'OGU', name: 'Ordu (OGU) — Giresun' },
+  { code: 'SIC', name: 'Sinop (SIC)' },
+  { code: 'RTE', name: 'Rize (RTE) — Artvin' },
+  { code: 'RZV', name: 'Rize-Artvin (RZV)' },
+  { code: 'NOP', name: 'Sinop (NOP)' },
+  { code: 'GZP', name: 'Alanya (GZP) — Gazipaşa' },
+  { code: 'TEV', name: 'Denizli (TEV) — Çardak' },
+];
+
+const normalize = (str: string) =>
+  str
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/ı/g, 'i');
+
+const PICKER_INPUT_STYLE: CSSProperties = {
+  width: '100%',
+  padding: '12px 16px',
+  background: 'rgba(255,255,255,0.06)',
+  border: '0.5px solid rgba(255,255,255,0.15)',
+  borderRadius: '10px',
+  color: '#ffffff',
+  fontSize: '14px',
+  colorScheme: 'dark',
+  cursor: 'pointer',
+  WebkitAppearance: 'none',
+};
+
+function openPickerOnClick(e: ReactMouseEvent<HTMLInputElement>) {
+  void (e.target as HTMLInputElement).showPicker?.();
+}
 
 type HeroSearchProps = {
   onError?: (msg: string) => void;
@@ -15,6 +100,7 @@ type HeroSearchProps = {
 export function HeroSearch({ onError }: HeroSearchProps) {
   const router = useRouter();
   const destWrapRef = useRef<HTMLDivElement>(null);
+  const departureWrapRef = useRef<HTMLDivElement>(null);
 
   const [destination, setDestination] = useState('');
   const [suggestions, setSuggestions] = useState<Destination[]>([]);
@@ -24,26 +110,77 @@ export function HeroSearch({ onError }: HeroSearchProps) {
   const [arrivalAirportOptions, setArrivalAirportOptions] = useState<Airport[]>([]);
   const [destinationArrivalIata, setDestinationArrivalIata] = useState('');
 
-  const [departureIata, setDepartureIata] = useState<DepartureIata>('ADB');
+  const [departureIata, setDepartureIata] = useState<DepartureIata | ''>('');
+  const [departureSearch, setDepartureSearch] = useState('');
+  const [departureSuggestions, setDepartureSuggestions] = useState<(typeof DEPARTURE_AIRPORTS)[number][]>(
+    [],
+  );
+  const [showDepartureSuggestions, setShowDepartureSuggestions] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [people, setPeople] = useState<PlanRequest['people']>('cift');
   const [tripType, setTripType] = useState<PlanRequest['tripType']>('karma');
   const [budget, setBudget] = useState('');
+  const [budgetDisplay, setBudgetDisplay] = useState('');
+  const [budgetIncludes, setBudgetIncludes] = useState<BudgetIncludes>({
+    flight: false,
+    car: false,
+    hotel: true,
+    food: true,
+    activities: true,
+  });
   const [hasRentalCar, setHasRentalCar] = useState(false);
   const [hasTicket, setHasTicket] = useState(false);
   const [arrivalTime, setArrivalTime] = useState('');
   const [departureTime, setDepartureTime] = useState('');
+
+  const minStartDate = new Date().toISOString().split('T')[0];
+  const minEndDate = startDate
+    ? new Date(new Date(startDate).getTime() + 86400000).toISOString().split('T')[0]
+    : new Date().toISOString().split('T')[0];
+
+  const handleBudgetChange = (value: string) => {
+    const numbers = value.replace(/[^0-9]/g, '');
+
+    setBudget(numbers);
+
+    if (numbers === '') {
+      setBudgetDisplay('');
+      return;
+    }
+
+    const formatted = new Intl.NumberFormat('tr-TR').format(Number(numbers));
+    setBudgetDisplay(formatted + ' ₺');
+  };
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (!destWrapRef.current?.contains(e.target as Node)) {
         setShowSuggestions(false);
       }
+      if (!departureWrapRef.current?.contains(e.target as Node)) {
+        setShowDepartureSuggestions(false);
+      }
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
+
+  const handleDepartureSearch = (value: string) => {
+    setDepartureSearch(value);
+    setDepartureIata('');
+    if (value.length < 1) {
+      setDepartureSuggestions([]);
+      setShowDepartureSuggestions(false);
+      return;
+    }
+    const q = normalize(value);
+    const results = DEPARTURE_AIRPORTS.filter(
+      (a) => normalize(a.name).includes(q) || a.code.toLowerCase().includes(q),
+    ).slice(0, 6);
+    setDepartureSuggestions(results);
+    setShowDepartureSuggestions(true);
+  };
 
   const handleDestinationChange = (value: string) => {
     setDestination(value);
@@ -115,6 +252,11 @@ export function HeroSearch({ onError }: HeroSearchProps) {
       onError?.('Lütfen destinasyon, tarih aralığı ve bütçeyi doldurun.');
       return;
     }
+    const dep = departureIata.trim().toUpperCase();
+    if (!dep || !ALLOWED_DEPARTURE_IATA.includes(dep as DepartureIata)) {
+      onError?.('Lütfen kalkış şehri seçin.');
+      return;
+    }
     if (hasTicket && (!arrivalTime || !departureTime)) {
       onError?.('Biletiniz varsa gidiş iniş ve dönüş kalkış saatlerini girin.');
       return;
@@ -127,12 +269,13 @@ export function HeroSearch({ onError }: HeroSearchProps) {
 
     const request: PlanRequest = {
       destination: destPayload,
-      departureIata,
+      departureIata: dep as DepartureIata,
       startDate,
       endDate,
       people,
       tripType,
       budget: budget.trim(),
+      budgetIncludes,
       hasRentalCar,
       hasTicket,
       ...(hasTicket ? { arrivalTime, departureTime } : {}),
@@ -166,7 +309,8 @@ export function HeroSearch({ onError }: HeroSearchProps) {
               }}
               placeholder="Şehir yazın…"
               autoComplete="off"
-              className="h-11 w-full rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-3 text-[15px] text-white placeholder:text-white/35 focus:border-[#1d9e75] focus:outline-none"
+              className="h-11 w-full rounded-[10px] border border-white/10 px-3 text-[15px] text-white placeholder:text-white/35 focus:border-[#1d9e75] focus:outline-none"
+              style={{ background: 'rgba(255,255,255,0.06)' }}
             />
             {showSuggestions && suggestions.length > 0 ? (
               <div
@@ -255,28 +399,105 @@ export function HeroSearch({ onError }: HeroSearchProps) {
             </div>
           ) : null}
         </div>
-        <label className="flex flex-col gap-1">
+        <div ref={departureWrapRef} className="flex flex-col gap-1">
           <span className="text-[12px] text-[#5dcaa5]">Nereden kalkıyorsunuz?</span>
-          <select
-            value={departureIata}
-            onChange={(e) => setDepartureIata(e.target.value as DepartureIata)}
-            className="h-11 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-3 text-[15px] text-white focus:border-[#1d9e75] focus:outline-none"
-          >
-            {DEPARTURE_AIRPORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value} className="bg-[#0a0a0f]">
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              value={departureSearch}
+              onChange={(e) => handleDepartureSearch(e.target.value)}
+              onFocus={() => {
+                if (departureSuggestions.length > 0) setShowDepartureSuggestions(true);
+              }}
+              placeholder="Şehir veya havalimanı ara..."
+              autoComplete="off"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: 'rgba(255,255,255,0.06)',
+                border: '0.5px solid rgba(255,255,255,0.15)',
+                borderRadius: '10px',
+                color: '#ffffff',
+                fontSize: '14px',
+              }}
+            />
+            {showDepartureSuggestions && departureSuggestions.length > 0 ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: '#1a1a2e',
+                  border: '0.5px solid rgba(255,255,255,0.15)',
+                  borderRadius: '10px',
+                  marginTop: '4px',
+                  zIndex: 100,
+                  overflow: 'hidden',
+                }}
+              >
+                {departureSuggestions.map((a, i) => (
+                  <div
+                    key={a.code}
+                    role="button"
+                    tabIndex={0}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setDepartureIata(a.code);
+                      setDepartureSearch(a.name);
+                      setShowDepartureSuggestions(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setDepartureIata(a.code);
+                        setDepartureSearch(a.name);
+                        setShowDepartureSuggestions(false);
+                      }
+                    }}
+                    style={{
+                      padding: '10px 16px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      borderBottom:
+                        i < departureSuggestions.length - 1
+                          ? '0.5px solid rgba(255,255,255,0.06)'
+                          : 'none',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    <span style={{ fontSize: '14px', color: '#ffffff', fontWeight: 500 }}>{a.name}</span>
+                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{a.code}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-2 sm:col-span-2">
           <label className="flex flex-col gap-1">
             <span className="text-[12px] text-[#5dcaa5]">Başlangıç</span>
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="h-11 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-2 text-[14px] text-white focus:border-[#1d9e75] focus:outline-none"
+              min={minStartDate}
+              onChange={(e) => {
+                const v = e.target.value;
+                setStartDate(v);
+                if (v) {
+                  const nextMinEnd = new Date(new Date(v).getTime() + 86400000).toISOString().split('T')[0];
+                  setEndDate((prev) => (prev && prev < nextMinEnd ? nextMinEnd : prev));
+                }
+              }}
+              onClick={openPickerOnClick}
+              style={PICKER_INPUT_STYLE}
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -284,14 +505,16 @@ export function HeroSearch({ onError }: HeroSearchProps) {
             <input
               type="date"
               value={endDate}
+              min={minEndDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="h-11 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-2 text-[14px] text-white focus:border-[#1d9e75] focus:outline-none"
+              onClick={openPickerOnClick}
+              style={PICKER_INPUT_STYLE}
             />
           </label>
         </div>
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className="text-[12px] text-[#5dcaa5]">Kimlerle?</span>
           <select
@@ -318,30 +541,221 @@ export function HeroSearch({ onError }: HeroSearchProps) {
             <option value="karma">Karma</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1 sm:col-span-2 lg:col-span-1">
+      </div>
+
+      <div className="mt-3 w-full">
+        <label className="flex flex-col gap-1">
           <span className="text-[12px] text-[#5dcaa5]">Bütçe?</span>
           <input
             type="text"
-            value={budget}
-            onChange={(e) => setBudget(e.target.value)}
+            value={budgetDisplay}
+            onChange={(e) => handleBudgetChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Backspace') {
+                const newNumbers = budget.slice(0, -1);
+                setBudget(newNumbers);
+                if (newNumbers === '') {
+                  setBudgetDisplay('');
+                } else {
+                  const formatted = new Intl.NumberFormat('tr-TR').format(Number(newNumbers));
+                  setBudgetDisplay(formatted + ' ₺');
+                }
+                e.preventDefault();
+              }
+            }}
             placeholder="Örn. 50.000 ₺"
-            className="h-11 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-3 text-[15px] text-white placeholder:text-white/35 focus:border-[#1d9e75] focus:outline-none"
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              background: 'rgba(255,255,255,0.06)',
+              border: '0.5px solid rgba(255,255,255,0.15)',
+              borderRadius: '10px',
+              color: '#ffffff',
+              fontSize: '14px',
+            }}
           />
         </label>
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <label className="flex cursor-pointer items-center gap-2 self-end text-[12px] text-white/80">
-          <input
-            type="checkbox"
-            checked={hasRentalCar}
-            onChange={(e) => setHasRentalCar(e.target.checked)}
-            className="rounded border-white/20 bg-[#0a0a0f]/40 text-[#1d9e75] focus:ring-[#1d9e75]"
-          />
-          Araç kiralayacağım
-        </label>
-        <fieldset className="min-w-0 border-0 p-0">
-          <legend className="mb-2 text-[12px] text-[#5dcaa5]">Uçak biletiniz var mı?</legend>
+      {budget ? (
+        <>
+          <div
+            className="w-full"
+            style={{
+              marginTop: 8,
+              padding: '10px 14px',
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.1)',
+              borderRadius: 10,
+              fontSize: 12,
+              color: 'rgba(255,255,255,0.5)',
+              lineHeight: 1.6,
+            }}
+          >
+            {(() => {
+              const included = [
+                budgetIncludes.flight && 'uçak bileti',
+                budgetIncludes.car && 'araç kiralama',
+                budgetIncludes.hotel && 'konaklama',
+                budgetIncludes.food && 'yeme-içme',
+                budgetIncludes.activities && 'aktiviteler',
+              ].filter(Boolean) as string[];
+
+              if (included.length === 0) {
+                return '💡 Bütçenize nelerin dahil olduğunu seçin.';
+              }
+              return `💰 ${Number(budget).toLocaleString('tr-TR')} ₺ bütçenizden ${included.join(', ')} karşılanacak. Bütçenize uygun plan oluşturulacak.`;
+            })()}
+          </div>
+          <div
+            className="w-full"
+            style={{
+              marginTop: 8,
+              padding: '12px 16px',
+              background: 'rgba(255,255,255,0.04)',
+              border: '0.5px solid rgba(255,255,255,0.1)',
+              borderRadius: 10,
+            }}
+          >
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Bu bütçeye neler dahil?</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+              {(
+                [
+                  { key: 'flight', label: '✈️ Uçak bileti' },
+                  { key: 'car', label: '🚗 Araç kiralama' },
+                  { key: 'hotel', label: '🏨 Konaklama' },
+                  { key: 'food', label: '🍽️ Yeme-içme' },
+                  { key: 'activities', label: '🎯 Aktiviteler' },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() =>
+                    setBudgetIncludes((prev) => ({ ...prev, [item.key]: !prev[item.key] }))
+                  }
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 999,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    border: '0.5px solid',
+                    borderColor: budgetIncludes[item.key]
+                      ? 'rgba(29,158,117,0.6)'
+                      : 'rgba(255,255,255,0.15)',
+                    background: budgetIncludes[item.key]
+                      ? 'rgba(29,158,117,0.15)'
+                      : 'transparent',
+                    color: budgetIncludes[item.key] ? '#5dcaa5' : 'rgba(255,255,255,0.5)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 16,
+          alignItems: 'center',
+          marginTop: 12,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            alignSelf: 'start',
+          }}
+        >
+          <div
+            role="switch"
+            aria-checked={hasRentalCar}
+            tabIndex={0}
+            onClick={() => setHasRentalCar(!hasRentalCar)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setHasRentalCar(!hasRentalCar);
+              }
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              cursor: 'pointer',
+              userSelect: 'none',
+              paddingTop: 4,
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 24,
+                borderRadius: 999,
+                background: hasRentalCar ? '#1d9e75' : 'rgba(255,255,255,0.1)',
+                border: '0.5px solid',
+                borderColor: hasRentalCar ? '#1d9e75' : 'rgba(255,255,255,0.2)',
+                position: 'relative',
+                transition: 'all 0.2s',
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 3,
+                  left: hasRentalCar ? 22 : 3,
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  background: '#ffffff',
+                  transition: 'left 0.2s',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                }}
+              />
+            </div>
+            <span
+              style={{
+                fontSize: 13,
+                color: hasRentalCar ? '#ffffff' : 'rgba(255,255,255,0.5)',
+                transition: 'color 0.2s',
+              }}
+            >
+              🚗 Araç kiraladım
+            </span>
+          </div>
+          <div
+            style={{
+              marginTop: 6,
+              padding: '8px 12px',
+              background: 'rgba(29,158,117,0.08)',
+              border: '0.5px solid rgba(29,158,117,0.25)',
+              borderRadius: 8,
+              fontSize: 12,
+              color: 'rgba(255,255,255,0.6)',
+              lineHeight: 1.5,
+            }}
+          >
+            🚗 Araç kiraladıysanız planınız çevre şehirlere günübirlik geziler ve daha fazla konum içerecek.
+          </div>
+        </div>
+
+        <div
+          role="group"
+          aria-labelledby="hero-flight-ticket-label"
+          style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+        >
+          <div id="hero-flight-ticket-label" style={{ fontSize: 12, color: '#5dcaa5' }}>
+            Uçak biletiniz var mı?
+          </div>
           <div className="flex flex-col gap-2">
             <label className="flex cursor-pointer items-start gap-2 text-[13px] text-white/90">
               <input
@@ -374,7 +788,7 @@ export function HeroSearch({ onError }: HeroSearchProps) {
               <span>🔍 Hayır, bakmak istiyorum</span>
             </label>
           </div>
-        </fieldset>
+        </div>
       </div>
 
       <div className="mt-3 space-y-3">
@@ -412,8 +826,8 @@ export function HeroSearch({ onError }: HeroSearchProps) {
                       type="time"
                       value={arrivalTime}
                       onChange={(e) => setArrivalTime(e.target.value)}
-                      step={60}
-                      className="h-11 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-3 text-[15px] text-white focus:border-[#1d9e75] focus:outline-none"
+                      onClick={openPickerOnClick}
+                      style={PICKER_INPUT_STYLE}
                     />
                     <span className="text-[11px] text-white/40">örn. 17:00</span>
                   </label>
@@ -423,8 +837,8 @@ export function HeroSearch({ onError }: HeroSearchProps) {
                       type="time"
                       value={departureTime}
                       onChange={(e) => setDepartureTime(e.target.value)}
-                      step={60}
-                      className="h-11 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-3 text-[15px] text-white focus:border-[#1d9e75] focus:outline-none"
+                      onClick={openPickerOnClick}
+                      style={PICKER_INPUT_STYLE}
                     />
                     <span className="text-[11px] text-white/40">örn. 14:00</span>
                   </label>
@@ -440,10 +854,7 @@ export function HeroSearch({ onError }: HeroSearchProps) {
         >
           <div className="min-h-0 overflow-hidden">
             <div className="rounded-[10px] border border-white/10 bg-[#0a0a0f]/35 p-3 text-[13px] leading-relaxed text-white/85">
-              <p className="font-medium text-white/95">🔍 Skyscanner üzerinde uçuş arayacağız.</p>
-              <p className="mt-1 text-white/75">
-                Plan oluşturduktan sonra size en uygun uçuşları göstereceğiz.
-              </p>
+              ✈️ Uçak biletinizi henüz almadıysanız plan oluşturduktan sonra size en uygun uçuşları göstereceğiz.
             </div>
           </div>
         </div>

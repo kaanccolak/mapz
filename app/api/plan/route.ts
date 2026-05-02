@@ -7,7 +7,7 @@ import {
   getCityCoords,
   getNearbyPlaces,
 } from '@/lib/opentripmap';
-import type { PlanRequest } from '@/types';
+import { mergeBudgetIncludes, type BudgetIncludes, type PlanRequest } from '@/types';
 
 function isValidPeople(v: unknown): v is PlanRequest['people'] {
   return (
@@ -95,6 +95,7 @@ export async function POST(req: Request) {
       people,
       tripType,
       budget,
+      budgetIncludes: mergeBudgetIncludes(body.budgetIncludes as Partial<BudgetIncludes> | undefined),
       hasRentalCar,
       hasTicket,
       ...(hasTicket ? { arrivalTime, departureTime } : {}),

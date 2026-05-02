@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccommodationPlan } from '@/components/AccommodationPlan';
 import { DayCard } from '@/components/DayCard';
+import { assignBookingUrlsToHotelSuggestions } from '@/lib/booking';
 import { mapLegacyDepartureToIata, normalizeDepartureIata } from '@/lib/departure-airports';
 import { buildSkyscannerTasimaUrl } from '@/lib/iata';
-import type { PlanRequest, StoredTrip, TripPlan } from '@/types';
+import { mergeBudgetIncludes, type PlanRequest, type StoredTrip, type TripPlan } from '@/types';
 
 const MapView = dynamic(() => import('@/components/MapView').then((m) => m.MapView), {
   ssr: false,
@@ -147,6 +148,7 @@ function normalizeStoredTrip(raw: unknown): StoredTrip | null {
     people: r.people,
     tripType: r.tripType,
     budget: r.budget,
+    budgetIncludes: mergeBudgetIncludes(r.budgetIncludes),
     hasRentalCar: r.hasRentalCar,
     hasTicket,
     ...(hasTicket && typeof r.arrivalTime === 'string' && typeof r.departureTime === 'string'
@@ -282,6 +284,11 @@ export default function PlanPage() {
     });
   }, [data]);
 
+  const hotelSuggestionsForDisplay = useMemo(() => {
+    if (!data?.plan?.hotelSuggestions?.length) return [];
+    return assignBookingUrlsToHotelSuggestions(data.plan.hotelSuggestions, data.request);
+  }, [data]);
+
   if (!mounted) {
     return <div className="min-h-screen bg-[#0a0a0f]" aria-hidden />;
   }
@@ -324,7 +331,7 @@ export default function PlanPage() {
   return (
     <div className="flex min-h-screen flex-col bg-[#f8f8f7] lg:flex-row">
       <aside className="flex w-full shrink-0 flex-col border-b border-[#e5e7eb] bg-white lg:w-[380px] lg:border-b-0 lg:border-r">
-        <AccommodationPlan suggestions={data.plan.hotelSuggestions} />
+        <AccommodationPlan suggestions={hotelSuggestionsForDisplay} />
 
         <header className="border-b border-[#e5e7eb] p-4">
           <h1 className="text-[15px] font-medium leading-snug text-[#0a0a0f]">
@@ -343,7 +350,7 @@ export default function PlanPage() {
               rel="noopener noreferrer"
               className="mt-3 flex h-10 w-full items-center justify-center rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] font-medium text-[#0a0a0f] transition-colors hover:bg-[#f8f8f7]"
             >
-              Uçuş Bul (Skyscanner)
+              {req.budgetIncludes.flight ? 'Uçuş Bul (Skyscanner)' : 'Uçuş Bul (Bütçe dışı)'}
             </a>
           ) : (
             <p className="mt-3 text-[12px] leading-relaxed text-[#6b7280]">

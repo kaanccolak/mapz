@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { assignBookingUrlsToHotelSuggestions } from '@/lib/booking';
 import { tripNightsBetween } from '@/lib/opentripmap';
-import type { HotelSuggestion, PlanRequest, TripPlan } from '@/types';
+import { mergeBudgetIncludes, type HotelSuggestion, type PlanRequest, type TripPlan } from '@/types';
 import { peopleToAdults } from '@/lib/iata';
 
 const MODEL = 'claude-sonnet-4-5';
@@ -22,20 +23,21 @@ KURALLAR:
 - Bütçeye uygun öneriler yap
 - Balayı/çift seyahatlerinde romantik dokunuşlar ekle
 
+BÜTÇE DAĞILIMI (budgetBreakdown):
+- Kullanıcı mesajında "bu bütçeye dahil olanlar" listelenir. Yalnızca dahil edilen kalemler için anlamlı tutar tahmini yaz.
+- Dahil OLMAYAN kalem için ilgili alanı boş string "" bırak (ör. uçak dahil değilse "ucak": "").
+- Örn. uçak bileti dahil değilse ucak satırını gösterme anlamında değer verme; boş string kullan.
+
 HARİTA:
 - Her aktivite için "lat" ve "lng" (ondalık derece) ver.
 - Her aktivitenin lat ve lng koordinatları kesinlikle doğru ve gerçek olmalı. Uydurma koordinat verme. Eğer bir mekanın koordinatını bilmiyorsan o şehrin merkez koordinatını ver. Koordinatlar Google Maps'te o mekanı göstermeli.
 - Gün içinde aktivite sırası = rota sırası olacak şekilde listele.
 
 KONAKLAMA (hotelSuggestions):
-- hotelSuggestions içinde her şehir için mutlaka "bookingUrl" ver.
-- bookingUrl formatı şöyle olsun (tek satır, tam URL):
-  https://www.booking.com/searchresults.tr.html?ss=SEHIR_ADI%2C+ULKE_VEYA_BOLGE&checkin=YYYY-MM-DD&checkout=YYYY-MM-DD&group_adults=N
-- ss değerinde şehir ve ülke/bölge virgülle ayrılmalı (URL'de %2C kullan). Örnek: Kotor için ss=Kotor%2C+Montenegro
-- checkin/checkout: Kullanıcı mesajında verilen seyahat başlangıç ve bitiş tarihlerine (YYYY-MM-DD) göre her şehir için o şehirde kalınan ilk gece check-in, ayrılış günü check-out olacak şekilde hesapla.
-- group_adults: kullanıcı mesajındaki N değerini kullan.
+- Her şehir için "city", "nights" ve "category" alanlarını ver. "bookingUrl" verme veya boş string bırak; sunucu otomatik Booking.com arama linki (tarih, kişi sayısı, bütçeye göre fiyat filtresi) üretecek.
 - Toplam gece sayısı ile start–end tarihleri uyumlu olsun; şehirler arası geceleri mantıklı böl (örnek: 7 gecede Kotor 3 gece, Budva 4 gece).
-- Eski alan olarak "bookingSearchUrl" kullanma; yalnızca "bookingUrl" yeterli.
+- "category" alanını kullanıcı mesajındaki kullanılabilir net bütçe ve gece sayısına göre seç; düşük net bütçe → ekonomik/hostel, orta → orta segment, yüksek → 4 yıldızlı veya 5 yıldızlı/butik.
+- "category" kısa Türkçe bir etiket olsun (örn. "Orta segment otel", "4 yıldızlı otel").
 
 JSON yazımı (alan adları):
 - Property name'lerde asla tek tırnak kullanma; yalnızca çift tırnaklı standart ASCII alan adları kullan (ör. "tripTitle", "days", "activities"). Property name'lerde Türkçe veya özel Unicode karakter kullanma. Mekan adları vb. için Türkçe ve özel karakterler yalnızca string değerlerinde olabilir.
@@ -65,9 +67,9 @@ Yanıtını SADECE aşağıdaki JSON formatında ver, başka hiçbir şey yazma:
   ],
   "hotelSuggestions": [
     {
-      "city": "Kotor",
+      "city": "Kotor, Montenegro",
       "nights": 3,
-      "bookingUrl": "https://www.booking.com/searchresults.tr.html?ss=Kotor%2C+Montenegro&checkin=2026-09-04&checkout=2026-09-07&group_adults=2"
+      "category": "Orta segment otel"
     }
   ],
   "budgetBreakdown": {
@@ -108,6 +110,15 @@ export function buildUserMessage(req: PlanRequest, placesText: string): string {
     karma: 'Karma',
   };
   const adults = peopleToAdults(req.people);
+  const bi = mergeBudgetIncludes(req.budgetIncludes);
+  const budgetIncludesText: string[] = [];
+  if (bi.flight) budgetIncludesText.push('uçak bileti');
+  if (bi.car) budgetIncludesText.push('araç kiralama');
+  if (bi.hotel) budgetIncludesText.push('konaklama');
+  if (bi.food) budgetIncludesText.push('yeme-içme');
+  if (bi.activities) budgetIncludesText.push('aktiviteler');
+
+  const peopleMap = peopleLabels;
 
   const otmBlock =
     placesText.trim().length > 0
@@ -152,11 +163,16 @@ Destinasyon: ${req.destination}
 Kalkış havalimanı (IATA): ${req.departureIata}
 Başlangıç tarihi (check-in referansı): ${req.startDate}
 Bitiş tarihi (check-out referansı): ${req.endDate}
-Kimlerle: ${peopleLabels[req.people]}
 Tatil tipi: ${tripLabels[req.tripType]}
-Bütçe (kullanıcının verdiği ifade): ${req.budget}
+Toplam bütçe: ${req.budget} TL
+Bütçeye dahil olan kalemler: ${budgetIncludesText.join(', ') || 'belirtilmedi'}
+Kişi sayısı: ${peopleMap[req.people]}
+Bu bütçeye göre uygun otel kategorisi, restoranlar ve aktiviteler öner.
+Bütçe dağılımını (budgetBreakdown) yalnızca bütçeye dahil olan kalemler için doldur; dahil olmayan kalem için boş string "" kullan (örn. uçak listede yoksa "ucak": "").
 Araç kiralama: ${req.hasRentalCar ? 'Evet, araçlı' : 'Hayır, araçsız'}
-group_adults (bookingUrl içinde kullan): ${adults}
+group_adults (yetişkin sayısı, sunucu Booking linkinde kullanır): ${adults}
+
+Konaklama önerilerinde hotelSuggestions içindeki "category" alanını toplam bütçe ve dahil olan kalemlere uygun seç.
 ${flightBlock}
 ${otmBlock}
 Sadece JSON döndür. Başka hiçbir şey yazma.`;
@@ -199,11 +215,12 @@ function parseTripPlanJson(text: string): TripPlan {
   }
   if (parsed.hotelSuggestions?.length) {
     parsed.hotelSuggestions = parsed.hotelSuggestions.map((h: HotelSuggestion & { bookingSearchUrl?: string }) => {
-      const bookingUrl = h.bookingUrl || h.bookingSearchUrl;
+      const category = typeof h.category === 'string' && h.category.trim() ? h.category.trim() : undefined;
       return {
         city: h.city,
         nights: h.nights,
-        bookingUrl,
+        category,
+        bookingUrl: h.bookingUrl || h.bookingSearchUrl,
         bookingSearchUrl: h.bookingSearchUrl,
       };
     });
@@ -387,5 +404,9 @@ export async function generateTripPlan(request: PlanRequest, placesText: string)
     throw new Error('Boş model yanıtı');
   }
   const plan = parseTripPlanJson(text);
-  return sanitizeNoTicketFlightDays(plan, request.hasTicket);
+  const sanitized = sanitizeNoTicketFlightDays(plan, request.hasTicket);
+  return {
+    ...sanitized,
+    hotelSuggestions: assignBookingUrlsToHotelSuggestions(sanitized.hotelSuggestions ?? [], request),
+  };
 }

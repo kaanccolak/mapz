@@ -30,6 +30,9 @@ export function AccommodationPlan({ suggestions }: AccommodationPlanProps) {
             <p className="text-[15px] font-medium text-[#0a0a0f]">
               {h.city} · {h.nights} gece
             </p>
+            {h.category ? (
+              <span style={{ fontSize: 11, color: '#5dcaa5' }}>{h.category}</span>
+            ) : null}
             <a
               href={hotelLink(h)}
               target="_blank"
