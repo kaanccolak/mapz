@@ -4,19 +4,36 @@ Türk kullanıcılar için yapay zeka destekli seyahat planlama uygulaması. Des
 
 ## Özellikler
 
-- 🗺️ Gün gün dolu seyahat planı (4-5 aktivite + yemekler)
+- 🗺️ Gün gün dolu seyahat planı
 - 📍 Google Maps üzerinde numaralı pinler
-- 🏨 Şehir bazlı Booking.com otel önerileri
-- ✈️ Skyscanner uçuş arama entegrasyonu
+- 🏨 Booking.com otel önerileri
+- ✈️ Skyscanner uçuş arama
+- 💰 Harcama Planlayıcı
 - 📄 PDF olarak indirme
-- 🔍 Dünya genelinde şehir/ülke arama
+- 📱 Mobil uyumlu
 
 ## Kurulum
 
 ```bash
 npm install
+npm run dev
 ```
 
-Geliştirme için `.env.local` içinde gerekli anahtarları tanımlayıp `npm run dev` çalıştırın; uygulama [http://localhost:3000](http://localhost:3000) adresinde açılır.
+Proje kökünde `.env.local` oluşturun:
 
-Detaylı proje bağlamı için `CLAUDE.md` dosyasına bakın.
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=...
+GOOGLE_MAPS_API_KEY=...
+OPENTRIPMAP_API_KEY=...
+```
+
+Uygulama [http://localhost:3000](http://localhost:3000) adresinde açılır. Detaylı bağlam için `CLAUDE.md` dosyasına bakın.
+
+## Teknolojiler
+
+- Next.js 14, TypeScript, Tailwind CSS
+- Anthropic Claude API
+- Google Maps JavaScript API
+- OpenTripMap API
+- jsPDF + html2canvas

@@ -12,23 +12,24 @@ const peopleLabels: Record<PlanRequest['people'], string> = {
   arkadasgrubu: 'Arkadaş grubu',
 };
 
-const budgetLabels: Record<string, string> = {
-  ucak: '✈️ Uçak Bileti',
-  konaklama: '🏨 Konaklama',
-  aracKiralama: '🚗 Araç Kiralama',
-  yemeIcme: '🍽️ Yeme-İçme',
-  gezmeAktivite: '🎯 Gezme & Aktivite',
-  alisveris: '🛍️ Alışveriş',
+export type PdfExpenses = {
+  ucak: string;
+  konaklama: string;
+  aracKiralama: string;
+  yemeIcme: string;
+  alisveris: string;
+  diger: string;
 };
 
 interface PdfExportProps {
   plan: TripPlan;
   request: PlanRequest;
+  expenses: PdfExpenses;
   /** Dar sidebar için küçük buton */
   compact?: boolean;
 }
 
-export default function PdfExport({ plan, request, compact }: PdfExportProps) {
+export default function PdfExport({ plan, request, expenses, compact }: PdfExportProps) {
   const [loading, setLoading] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -268,48 +269,59 @@ export default function PdfExport({ plan, request, compact }: PdfExportProps) {
 
           <div
             style={{
-              marginTop: 8,
-              padding: '20px 24px',
-              background: '#f8fffe',
-              border: '1px solid #d1fae5',
-              borderRadius: 12,
+              padding: '16px',
+              border: '1px solid #e5e7eb',
+              borderRadius: '8px',
+              marginTop: 16,
             }}
           >
-            <h2
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: '#1d9e75',
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-                margin: '0 0 14px 0',
-              }}
-            >
-              Tahmini Bütçe Özeti
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: '#1d9e75', margin: '0 0 12px 0' }}>
+              Tahmini Harcama Özeti
             </h2>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '8px 24px',
-              }}
-            >
-              {Object.entries(plan.budgetBreakdown)
-                .filter(([, v]) => v)
-                .map(([k, v]) => (
-                  <div
-                    key={k}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      padding: '6px 0',
-                      borderBottom: '1px solid #e5e7eb',
-                    }}
-                  >
-                    <span style={{ color: '#6b7280', fontSize: 13 }}>{budgetLabels[k] || k}</span>
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>{v}</span>
-                  </div>
-                ))}
+            {(
+              [
+                { label: '✈️ Uçak Bileti', value: expenses.ucak },
+                { label: '🏨 Konaklama', value: expenses.konaklama },
+                { label: '🚗 Araç Kiralama', value: expenses.aracKiralama },
+                { label: '🍽️ Yeme-İçme', value: expenses.yemeIcme },
+                { label: '🛍️ Alışveriş', value: expenses.alisveris },
+                { label: '🎯 Diğer', value: expenses.diger },
+              ] as const
+            )
+              .filter((item) => item.value)
+              .map((item, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: '6px 0',
+                    borderBottom: '1px solid #f3f4f6',
+                  }}
+                >
+                  <span style={{ color: '#6b7280', fontSize: 13 }}>{item.label}</span>
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>
+                    {new Intl.NumberFormat('tr-TR').format(Number(item.value))} ₺
+                  </span>
+                </div>
+              ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', marginTop: 4 }}>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Toplam</span>
+              <span style={{ fontWeight: 700, fontSize: 14, color: '#1d9e75' }}>
+                {new Intl.NumberFormat('tr-TR').format(
+                  [
+                    expenses.ucak,
+                    expenses.konaklama,
+                    expenses.aracKiralama,
+                    expenses.yemeIcme,
+                    expenses.alisveris,
+                    expenses.diger,
+                  ]
+                    .map((v) => Number(v) || 0)
+                    .reduce((a, b) => a + b, 0),
+                )}{' '}
+                ₺
+              </span>
             </div>
           </div>
         </div>

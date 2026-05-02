@@ -514,13 +514,13 @@ export function HeroSearch({ onError }: HeroSearchProps) {
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="flex flex-col gap-1">
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <label className="flex w-full min-w-0 flex-col gap-1">
           <span className="text-[12px] text-[#5dcaa5]">Kimlerle?</span>
           <select
             value={people}
             onChange={(e) => setPeople(e.target.value as PlanRequest['people'])}
-            className="h-11 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-3 text-[15px] text-white focus:border-[#1d9e75] focus:outline-none"
+            className="h-11 w-full min-w-0 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-3 text-[15px] text-white focus:border-[#1d9e75] focus:outline-none"
           >
             <option value="yalniz">Yalnız</option>
             <option value="cift">Çift</option>
@@ -528,12 +528,12 @@ export function HeroSearch({ onError }: HeroSearchProps) {
             <option value="arkadasgrubu">Arkadaş grubu</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="flex w-full min-w-0 flex-col gap-1">
           <span className="text-[12px] text-[#5dcaa5]">Tatil tipi?</span>
           <select
             value={tripType}
             onChange={(e) => setTripType(e.target.value as PlanRequest['tripType'])}
-            className="h-11 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-3 text-[15px] text-white focus:border-[#1d9e75] focus:outline-none"
+            className="h-11 w-full min-w-0 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-3 text-[15px] text-white focus:border-[#1d9e75] focus:outline-none"
           >
             <option value="tarih">Tarih</option>
             <option value="deniz">Deniz</option>
@@ -634,10 +634,9 @@ export function HeroSearch({ onError }: HeroSearchProps) {
                   onClick={() =>
                     setBudgetIncludes((prev) => ({ ...prev, [item.key]: !prev[item.key] }))
                   }
+                  className="text-[11px] px-2 py-1 md:px-3 md:py-1.5 md:text-xs"
                   style={{
-                    padding: '6px 12px',
                     borderRadius: 999,
-                    fontSize: 12,
                     cursor: 'pointer',
                     border: '0.5px solid',
                     borderColor: budgetIncludes[item.key]
@@ -658,15 +657,7 @@ export function HeroSearch({ onError }: HeroSearchProps) {
         </>
       ) : null}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 16,
-          alignItems: 'center',
-          marginTop: 12,
-        }}
-      >
+      <div className="mt-3 grid grid-cols-1 items-start gap-4 md:grid-cols-2 md:items-center">
         <div
           style={{
             display: 'flex',
@@ -729,7 +720,7 @@ export function HeroSearch({ onError }: HeroSearchProps) {
                 transition: 'color 0.2s',
               }}
             >
-              🚗 Araç kiraladım/kiralayacağım.
+              🚗 Araç kiraladım
             </span>
           </div>
           <div

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccommodationPlan } from '@/components/AccommodationPlan';
 import { DayCard } from '@/components/DayCard';
-import PdfExport from '@/components/PdfExport';
+import PdfExport, { type PdfExpenses } from '@/components/PdfExport';
 import { assignBookingUrlsToHotelSuggestions } from '@/lib/booking';
 import { mapLegacyDepartureToIata, normalizeDepartureIata } from '@/lib/departure-airports';
 import { buildSkyscannerTasimaUrl } from '@/lib/iata';
@@ -173,6 +173,15 @@ export default function PlanPage() {
   const [selectedActivityIndex, setSelectedActivityIndex] = useState<number | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
   const [isNarrowViewport, setIsNarrowViewport] = useState(false);
+  const [expenses, setExpenses] = useState<PdfExpenses>({
+    ucak: '',
+    konaklama: '',
+    aracKiralama: '',
+    yemeIcme: '',
+    alisveris: '',
+    diger: '',
+  });
+  const [showExpenses, setShowExpenses] = useState(false);
 
   useEffect(() => {
     const check = () => {
@@ -369,6 +378,28 @@ export default function PlanPage() {
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-20 md:pb-0">
           <AccommodationPlan suggestions={hotelSuggestionsForDisplay} />
 
+          <div className="px-3 pt-1">
+            <button
+              type="button"
+              onClick={() => setShowExpenses(true)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                background: 'rgba(29,158,117,0.1)',
+                border: '0.5px solid rgba(29,158,117,0.3)',
+                borderRadius: 8,
+                color: '#5dcaa5',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                textAlign: 'left',
+                marginBottom: 12,
+              }}
+            >
+              💰 Harcama Planlayıcı
+            </button>
+          </div>
+
           <header className="border-b border-[#e5e7eb] p-3">
             <div
               style={{
@@ -389,7 +420,7 @@ export default function PlanPage() {
                 </div>
               </div>
               <div className="shrink-0">
-                <PdfExport plan={data.plan} request={data.request} compact />
+                <PdfExport plan={data.plan} request={data.request} expenses={expenses} compact />
               </div>
             </div>
             {!req.hasTicket ? (
@@ -478,6 +509,183 @@ export default function PlanPage() {
           </div>
         ) : null}
       </main>
+
+      {showExpenses ? (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowExpenses(false);
+          }}
+          role="presentation"
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-[400px] overflow-y-auto rounded-2xl p-6"
+            style={{
+              background: '#111118',
+              border: '0.5px solid rgba(255,255,255,0.1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="expenses-modal-title"
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 20,
+              }}
+            >
+              <div id="expenses-modal-title" style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>
+                💰 Harcama Planlayıcı
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExpenses(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(255,255,255,0.4)',
+                  fontSize: 18,
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                }}
+                aria-label="Kapat"
+              >
+                ✕
+              </button>
+            </div>
+
+            {(
+              [
+                { key: 'ucak' as const, label: '✈️ Uçak Bileti' },
+                { key: 'konaklama' as const, label: '🏨 Konaklama' },
+                { key: 'aracKiralama' as const, label: '🚗 Araç Kiralama' },
+                { key: 'yemeIcme' as const, label: '🍽️ Yeme-İçme' },
+                { key: 'alisveris' as const, label: '🛍️ Alışveriş' },
+                { key: 'diger' as const, label: '🎯 Diğer' },
+              ] as const
+            ).map((item) => (
+              <div
+                key={item.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 10,
+                }}
+              >
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{item.label}</span>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={expenses[item.key]}
+                    onChange={(e) => {
+                      const numbers = e.target.value.replace(/[^0-9]/g, '');
+                      setExpenses((prev) => ({ ...prev, [item.key]: numbers }));
+                    }}
+                    style={{
+                      width: 110,
+                      padding: '7px 28px 7px 10px',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '0.5px solid rgba(255,255,255,0.15)',
+                      borderRadius: 8,
+                      color: '#fff',
+                      fontSize: 13,
+                      textAlign: 'right',
+                    }}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      fontSize: 12,
+                      color: 'rgba(255,255,255,0.4)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    ₺
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            <div
+              style={{
+                marginTop: 12,
+                paddingTop: 12,
+                borderTop: '0.5px solid rgba(255,255,255,0.1)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>Toplam</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#5dcaa5' }}>
+                {new Intl.NumberFormat('tr-TR').format(
+                  Object.values(expenses)
+                    .map((v) => Number(v) || 0)
+                    .reduce((a, b) => a + b, 0),
+                )}{' '}
+                ₺
+              </span>
+            </div>
+
+            {req.budget &&
+              Object.values(expenses).some((v) => v) &&
+              (() => {
+                const total = Object.values(expenses)
+                  .map((v) => Number(v) || 0)
+                  .reduce((a, b) => a + b, 0);
+                const budgetParsed = Number(String(req.budget).replace(/\D/g, ''));
+                if (!Number.isFinite(budgetParsed) || budgetParsed <= 0) return null;
+                const diff = budgetParsed - total;
+                const isOver = diff < 0;
+                return (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: '8px 12px',
+                      background: isOver ? 'rgba(239,68,68,0.08)' : 'rgba(29,158,117,0.08)',
+                      border: `0.5px solid ${isOver ? 'rgba(239,68,68,0.3)' : 'rgba(29,158,117,0.3)'}`,
+                      borderRadius: 8,
+                      fontSize: 12,
+                      color: isOver ? '#f87171' : '#5dcaa5',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {isOver
+                      ? `⚠️ Bütçeni ${new Intl.NumberFormat('tr-TR').format(Math.abs(diff))} ₺ aştın`
+                      : `✅ Bütçenden ${new Intl.NumberFormat('tr-TR').format(diff)} ₺ kaldı`}
+                  </div>
+                );
+              })()}
+
+            <button
+              type="button"
+              onClick={() => setShowExpenses(false)}
+              style={{
+                width: '100%',
+                marginTop: 16,
+                padding: '10px',
+                background: '#1d9e75',
+                border: 'none',
+                borderRadius: 10,
+                color: '#fff',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Kaydet
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div
         className="fixed bottom-0 left-0 right-0 z-[100] flex gap-2 border-t border-white/10 bg-[#0a0a0f] px-4 py-2 md:hidden"
