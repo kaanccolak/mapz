@@ -729,7 +729,7 @@ export function HeroSearch({ onError }: HeroSearchProps) {
                 transition: 'color 0.2s',
               }}
             >
-              🚗 Araç kiraladım
+              🚗 Araç kiraladım/kiralayacağım.
             </span>
           </div>
           <div

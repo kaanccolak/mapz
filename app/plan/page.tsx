@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccommodationPlan } from '@/components/AccommodationPlan';
 import { DayCard } from '@/components/DayCard';
+import PdfExport from '@/components/PdfExport';
 import { assignBookingUrlsToHotelSuggestions } from '@/lib/booking';
 import { mapLegacyDepartureToIata, normalizeDepartureIata } from '@/lib/departure-airports';
 import { buildSkyscannerTasimaUrl } from '@/lib/iata';
@@ -334,9 +335,12 @@ export default function PlanPage() {
         <AccommodationPlan suggestions={hotelSuggestionsForDisplay} />
 
         <header className="border-b border-[#e5e7eb] p-4">
-          <h1 className="text-[15px] font-medium leading-snug text-[#0a0a0f]">
-            {req.destination} · {nights} gece · {dateLine}
-          </h1>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h1 className="min-w-0 flex-1 text-[15px] font-medium leading-snug text-[#0a0a0f]">
+              {req.destination} · {nights} gece · {dateLine}
+            </h1>
+            <PdfExport plan={data.plan} request={data.request} />
+          </div>
           <p className="mt-1 text-[12px] text-[#6b7280]">
             {metaPeople} · {metaCar} · Kalkış: {req.departureIata}
           </p>
