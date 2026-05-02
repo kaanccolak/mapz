@@ -34,6 +34,13 @@ export type MapViewProps = {
   /** InfoWindow kapanınca seçimi sıfırlamak için */
   onSelectionClear?: () => void;
   className?: string;
+  /** Varsayılan yakınlaştırma (ör. mobil 12, masaüstü 13) */
+  defaultZoom?: number;
+  /** true iken harita yüksekliği alt tab bar için kısaltılır */
+  isMobile?: boolean;
+  /** Verilirse aktivite listesinden önce bu noktaya pan/zoom uygulanır */
+  centerLat?: number;
+  centerLng?: number;
 };
 
 const PIN_COLORS: Record<string, { background: string; borderColor: string; glyphColor: string }> = {
@@ -114,14 +121,19 @@ function hasFocusableCoords(
   return typeof lat === 'number' && typeof lng === 'number' && !Number.isNaN(lat) && !Number.isNaN(lng);
 }
 
-function FitBounds({
-  path,
+/** İsteğe bağlı sabit merkez (aktivite listesinden bağımsız) */
+function MapCenterFromProps({
+  centerLat,
+  centerLng,
+  defaultZoom,
   selectedIndex,
   activities,
   dayNumber,
   removedIds,
 }: {
-  path: google.maps.LatLngLiteral[];
+  centerLat?: number;
+  centerLng?: number;
+  defaultZoom: number;
   selectedIndex?: number | null;
   activities: Activity[];
   dayNumber: number;
@@ -129,21 +141,58 @@ function FitBounds({
 }) {
   const map = useMap();
   useEffect(() => {
-    if (!map || path.length === 0) return;
+    if (!map || centerLat == null || centerLng == null) return;
+    if (Number.isNaN(centerLat) || Number.isNaN(centerLng)) return;
     if (hasFocusableCoords(selectedIndex, activities, dayNumber, removedIds)) return;
-    if (path.length >= 2) {
-      const bounds = new google.maps.LatLngBounds();
-      path.forEach((p) => bounds.extend(p));
-      map.fitBounds(bounds, { top: 48, right: 48, bottom: 48, left: 48 });
-    } else {
-      map.setCenter(path[0]);
-      map.setZoom(14);
-    }
-  }, [map, path, selectedIndex, activities, dayNumber, removedIds]);
+    map.panTo({ lat: centerLat, lng: centerLng });
+    map.setZoom(defaultZoom);
+  }, [map, centerLat, centerLng, defaultZoom, selectedIndex, activities, dayNumber, removedIds]);
   return null;
 }
 
-function GeocodeFallback({ mapQuery }: { mapQuery: string }) {
+/** Aktiviteler / gün değişince ilk geçerli koordinata pan (yeniden mount yok) */
+function MapPanToFirstActivity({
+  activities,
+  dayNumber,
+  removedIds,
+  selectedIndex,
+  defaultZoom,
+  centerLat,
+  centerLng,
+}: {
+  activities: Activity[];
+  dayNumber: number;
+  removedIds: Set<string>;
+  selectedIndex?: number | null;
+  defaultZoom: number;
+  centerLat?: number;
+  centerLng?: number;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    if (!map || !activities?.length) return;
+    if (hasFocusableCoords(selectedIndex, activities, dayNumber, removedIds)) return;
+    const hasCenterProp =
+      typeof centerLat === 'number' &&
+      typeof centerLng === 'number' &&
+      !Number.isNaN(centerLat) &&
+      !Number.isNaN(centerLng);
+    if (hasCenterProp) return;
+
+    const firstValid = activities.find((a, i) => {
+      if (removedIds.has(activityRowId(dayNumber, i))) return false;
+      const la = a.lat;
+      const lo = a.lng;
+      return typeof la === 'number' && typeof lo === 'number' && !Number.isNaN(la) && !Number.isNaN(lo);
+    });
+    if (!firstValid || firstValid.lat == null || firstValid.lng == null) return;
+    map.panTo({ lat: firstValid.lat, lng: firstValid.lng });
+    map.setZoom(defaultZoom);
+  }, [map, activities, dayNumber, removedIds, selectedIndex, defaultZoom, centerLat, centerLng]);
+  return null;
+}
+
+function GeocodeFallback({ mapQuery, defaultZoom }: { mapQuery: string; defaultZoom: number }) {
   const map = useMap();
   const geocoding = useMapsLibrary('geocoding');
 
@@ -153,13 +202,13 @@ function GeocodeFallback({ mapQuery }: { mapQuery: string }) {
     geocoder.geocode({ address: mapQuery }, (results, status) => {
       if (status === 'OK' && results?.[0]?.geometry?.location) {
         map.setCenter(results[0].geometry.location);
-        map.setZoom(13);
+        map.setZoom(defaultZoom);
       } else {
         map.setCenter({ lat: 41.0082, lng: 28.9784 });
         map.setZoom(5);
       }
     });
-  }, [map, geocoding, mapQuery]);
+  }, [map, geocoding, mapQuery, defaultZoom]);
 
   return null;
 }
@@ -285,6 +334,10 @@ type MapInnerProps = {
   selectedIndex?: number | null;
   onMarkerClick?: (index: number) => void;
   onSelectionClear?: () => void;
+  defaultZoom: number;
+  isMobile: boolean;
+  centerLat?: number;
+  centerLng?: number;
 };
 
 function MapInner({
@@ -295,6 +348,10 @@ function MapInner({
   selectedIndex,
   onMarkerClick,
   onSelectionClear,
+  defaultZoom,
+  isMobile,
+  centerLat,
+  centerLng,
 }: MapInnerProps) {
   const [popupIndex, setPopupIndex] = useState<number | null>(null);
 
@@ -313,7 +370,7 @@ function MapInner({
   }, []);
 
   const defaultCenter = path[0] ?? { lat: 41.0082, lng: 28.9784 };
-  const defaultZoom = path.length === 0 ? 5 : 13;
+  const initialZoom = path.length === 0 ? 5 : defaultZoom;
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || DEFAULT_MAP_ID;
 
   const handleMarkerOpen = useCallback(
@@ -332,10 +389,14 @@ function MapInner({
     <Map
       mapId={mapId}
       defaultCenter={defaultCenter}
-      defaultZoom={defaultZoom}
+      defaultZoom={initialZoom}
       gestureHandling="greedy"
       disableDefaultUI={false}
-      style={{ width: '100%', height: '100%', minHeight: '320px' }}
+      style={{
+        width: '100%',
+        height: '100%',
+        minHeight: isMobile ? 0 : 320,
+      }}
     >
       <SelectionFollow
         selectedIndex={selectedIndex}
@@ -354,15 +415,28 @@ function MapInner({
         />
       ))}
       {path.length > 0 ? (
-        <FitBounds
-          path={path}
-          selectedIndex={selectedIndex}
-          activities={activities}
-          dayNumber={dayNumber}
-          removedIds={removedIds}
-        />
+        <>
+          <MapCenterFromProps
+            centerLat={centerLat}
+            centerLng={centerLng}
+            defaultZoom={defaultZoom}
+            selectedIndex={selectedIndex}
+            activities={activities}
+            dayNumber={dayNumber}
+            removedIds={removedIds}
+          />
+          <MapPanToFirstActivity
+            activities={activities}
+            dayNumber={dayNumber}
+            removedIds={removedIds}
+            selectedIndex={selectedIndex}
+            defaultZoom={defaultZoom}
+            centerLat={centerLat}
+            centerLng={centerLng}
+          />
+        </>
       ) : (
-        <GeocodeFallback mapQuery={mapQuery} />
+        <GeocodeFallback mapQuery={mapQuery} defaultZoom={defaultZoom} />
       )}
     </Map>
   );
@@ -377,6 +451,10 @@ export function MapView({
   onMarkerClick,
   onSelectionClear,
   className = '',
+  defaultZoom = 13,
+  isMobile = false,
+  centerLat,
+  centerLng,
 }: MapViewProps) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
 
@@ -392,7 +470,10 @@ export function MapView({
   }
 
   return (
-    <div className={`h-full min-h-[320px] w-full overflow-hidden ${className}`}>
+    <div
+      className={`h-full w-full min-h-0 overflow-hidden ${isMobile ? '' : 'min-h-[320px]'} ${className}`}
+      style={{ height: isMobile ? 'calc(100vh - 60px)' : '100%' }}
+    >
       <APIProvider apiKey={apiKey} libraries={['geocoding', 'marker']}>
         <MapInner
           mapQuery={mapQuery}
@@ -402,6 +483,10 @@ export function MapView({
           selectedIndex={selectedIndex}
           onMarkerClick={onMarkerClick}
           onSelectionClear={onSelectionClear}
+          defaultZoom={defaultZoom}
+          isMobile={isMobile}
+          centerLat={centerLat}
+          centerLng={centerLng}
         />
       </APIProvider>
     </div>

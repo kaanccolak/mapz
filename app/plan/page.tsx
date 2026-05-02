@@ -171,6 +171,21 @@ export default function PlanPage() {
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set());
   const [selectedActivityIndex, setSelectedActivityIndex] = useState<number | null>(null);
+  const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+  const [isNarrowViewport, setIsNarrowViewport] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      const narrow = window.innerWidth < 768;
+      setIsNarrowViewport(narrow);
+      if (!narrow) setMobileView('list');
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  const mapDefaultZoom = isNarrowViewport ? 12 : 13;
 
   useEffect(() => {
     if (hasFetched.current) return;
@@ -330,8 +345,12 @@ export default function PlanPage() {
   const metaCar = req.hasRentalCar ? 'Araçlı' : 'Araçsız';
 
   return (
-    <div className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-[#f8f8f7] lg:flex-row">
-      <aside className="flex min-h-0 w-full flex-1 flex-col overflow-hidden border-b border-[#e5e7eb] bg-white lg:w-[380px] lg:flex-none lg:border-b-0 lg:border-r">
+    <div className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-[#f8f8f7] md:flex-row">
+      <aside
+        className={`flex min-h-0 w-full flex-1 flex-col overflow-hidden border-b border-[#e5e7eb] bg-white md:w-[380px] md:flex-none md:border-b-0 md:border-r ${
+          mobileView === 'map' ? 'hidden md:flex' : 'flex'
+        }`}
+      >
         <div
           style={{
             fontSize: 10,
@@ -347,7 +366,7 @@ export default function PlanPage() {
         >
           ⚠️ Mekanları ziyaret öncesi Google Maps'ten kontrol edin.
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-20 md:pb-0">
           <AccommodationPlan suggestions={hotelSuggestionsForDisplay} />
 
           <header className="border-b border-[#e5e7eb] p-3">
@@ -437,9 +456,13 @@ export default function PlanPage() {
         </div>
       </aside>
 
-      <main className="relative max-lg:h-[50vh] max-lg:min-h-[320px] max-lg:shrink-0 w-full flex-1 bg-[#e5e7eb] lg:min-h-screen">
+      <main
+        className={`relative w-full flex-1 overflow-hidden bg-[#e5e7eb] md:min-h-0 ${
+          mobileView === 'list' ? 'hidden min-h-0 md:block' : 'flex min-h-0 flex-1 flex-col'
+        }`}
+      >
         {activeDay ? (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 min-h-0">
             <MapView
               mapQuery={activeDay.mapQuery}
               activities={activeDay.activities}
@@ -448,11 +471,43 @@ export default function PlanPage() {
               selectedIndex={selectedActivityIndex}
               onMarkerClick={setSelectedActivityIndex}
               onSelectionClear={() => setSelectedActivityIndex(null)}
-              className="h-full w-full"
+              className="h-full w-full min-h-0"
+              defaultZoom={mapDefaultZoom}
+              isMobile={isNarrowViewport}
             />
           </div>
         ) : null}
       </main>
+
+      <div
+        className="fixed bottom-0 left-0 right-0 z-[100] flex gap-2 border-t border-white/10 bg-[#0a0a0f] px-4 py-2 md:hidden"
+        style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
+        role="tablist"
+        aria-label="Plan görünümü"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileView === 'list'}
+          onClick={() => setMobileView('list')}
+          className={`flex-1 cursor-pointer rounded-[10px] border-0 py-2.5 text-[13px] font-medium text-white ${
+            mobileView === 'list' ? 'bg-[#1d9e75]' : 'bg-white/[0.06]'
+          }`}
+        >
+          📋 Plan
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileView === 'map'}
+          onClick={() => setMobileView('map')}
+          className={`flex-1 cursor-pointer rounded-[10px] border-0 py-2.5 text-[13px] font-medium text-white ${
+            mobileView === 'map' ? 'bg-[#1d9e75]' : 'bg-white/[0.06]'
+          }`}
+        >
+          🗺️ Harita
+        </button>
+      </div>
     </div>
   );
 }
