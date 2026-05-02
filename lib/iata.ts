@@ -104,12 +104,17 @@ export function resolveSkyscannerDestinationIATA(destination: string): string {
 export function buildSkyscannerTasimaUrl(params: {
   departureIata: string;
   destination: string;
+  destinationAirportIata?: string;
   startDate: string;
   endDate: string;
   people: PlanRequest['people'];
 }): string {
   const origin = params.departureIata.trim().toUpperCase();
-  const dest = resolveSkyscannerDestinationIATA(params.destination);
+  const picked = params.destinationAirportIata?.trim().toUpperCase() ?? '';
+  const dest =
+    picked.length === 3 && /^[A-Z]{3}$/.test(picked)
+      ? picked
+      : resolveSkyscannerDestinationIATA(params.destination);
   const out = dateToSkyscannerSegment(params.startDate);
   const inbound = dateToSkyscannerSegment(params.endDate);
   const adults = peopleToAdults(params.people);

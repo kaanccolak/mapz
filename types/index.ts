@@ -49,6 +49,8 @@ export interface PlanRequest {
   destination: string;
   /** Kalkış havalimanı IATA (form dropdown) */
   departureIata: DepartureIata;
+  /** Varış havalimanı IATA (Photon / form); yoksa destinasyon metnine göre çözülür */
+  destinationAirportIata?: string;
   startDate: string;
   endDate: string;
   people: 'yalniz' | 'cift' | 'aile' | 'arkadasgrubu';

@@ -18,3 +18,33 @@ body {
     text-wrap: balance;
   }
 }
+
+@keyframes gezle-plan-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-gezle-plan-spin {
+  animation: gezle-plan-spin 1s linear infinite;
+}
+
+.animate-gezle-plan-spin-reverse {
+  animation: gezle-plan-spin 1.5s linear infinite reverse;
+}
+
+@keyframes gezle-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-gezle-step-fade {
+  animation: gezle-fade-in 0.35s ease-out;
+}

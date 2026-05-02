@@ -5,7 +5,9 @@ import { peopleToAdults } from '@/lib/iata';
 
 const MODEL = 'claude-sonnet-4-5';
 
-const SYSTEM_PROMPT = `Sen Türkçe konuşan bir seyahat planlama asistanısın.
+const SYSTEM_PROMPT = `Sen bir JSON üreticisin. Yanıtın her zaman sadece geçerli bir JSON objesi olmalı. Asla açıklama, yorum veya markdown kullanma. { ile başla } ile bitir.
+
+Sen Türkçe konuşan bir seyahat planlama asistanısın.
 Kullanıcının verdiği bilgilere göre detaylı bir seyahat planı oluştur.
 
 KURALLAR:
@@ -157,23 +159,38 @@ Araç kiralama: ${req.hasRentalCar ? 'Evet, araçlı' : 'Hayır, araçsız'}
 group_adults (bookingUrl içinde kullan): ${adults}
 ${flightBlock}
 ${otmBlock}
-JSON çıktısında gün sayısı, verilen tarih aralığına uygun olsun. hotelSuggestions içindeki her bookingUrl'de checkin/checkout tarihlerini bu başlangıç/bitişe ve şehir bazlı gece dağılımına göre üret.`;
+Sadece JSON döndür. Başka hiçbir şey yazma.`;
 }
 
 function parseTripPlanJson(text: string): TripPlan {
   let clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
   const jsonStart = clean.indexOf('{');
-  const jsonEnd = clean.lastIndexOf('}');
-  if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd >= jsonStart) {
-    clean = clean.substring(jsonStart, jsonEnd + 1);
+  if (jsonStart !== -1) {
+    clean = clean.substring(jsonStart);
+  }
+
+  const openBraces = (clean.match(/{/g) || []).length;
+  const closeBraces = (clean.match(/}/g) || []).length;
+  const diff = openBraces - closeBraces;
+  if (diff > 0) {
+    const lastCompleteIndex = clean.lastIndexOf('},');
+    if (lastCompleteIndex > 0) {
+      clean = clean.substring(0, lastCompleteIndex + 1);
+    }
+    clean += ']}]}'.repeat(1) + '}'.repeat(Math.max(0, diff - 2));
+  } else {
+    const jsonEnd = clean.lastIndexOf('}');
+    if (jsonEnd !== -1) {
+      clean = clean.substring(0, jsonEnd + 1);
+    }
   }
 
   let parsed: TripPlan;
   try {
     parsed = JSON.parse(clean) as TripPlan;
-  } catch {
-    console.error('JSON parse hatası, ham metin:', clean.substring(0, 500));
+  } catch (e) {
+    console.error('JSON parse hatası, ham metin:', clean.substring(0, 500), e);
     throw new Error('JSON parse edilemedi');
   }
 
@@ -299,7 +316,28 @@ function sanitizeNoTicketFlightDays(plan: TripPlan, hasTicket: boolean): TripPla
 /** Destinasyon ve gece sayısına göre kalınacak şehirleri İngilizce isimlerle döndürür (Claude). */
 export async function resolveTripCities(request: PlanRequest): Promise<string[]> {
   const client = getAnthropicClient();
-  const nights = tripNightsBetween(request.startDate, request.endDate);
+  const startDate = new Date(request.startDate);
+  const endDate = new Date(request.endDate);
+  let nights = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  if (!Number.isFinite(nights) || nights < 1) {
+    nights = tripNightsBetween(request.startDate, request.endDate);
+  }
+
+  let cityCountInstruction = '';
+  if (nights <= 3) {
+    cityCountInstruction = 'Sadece 1 şehir öner.';
+  } else if (nights <= 5) {
+    cityCountInstruction = '1 veya 2 şehir öner.';
+  } else {
+    cityCountInstruction = 'Mutlaka 2-3 farklı şehir öner, tek şehir kabul etme.';
+  }
+
+  const cityPrompt = `
+${request.destination} için ${nights} gecelik tatilde hangi şehirlerde kalınmalı?
+${cityCountInstruction}
+Sadece şehir isimlerini İngilizce ver, virgülle ayır. Başka hiçbir şey yazma.
+Örnek: Kotor, Budva
+`.trim();
 
   const message = await client.messages.create({
     model: MODEL,
@@ -310,7 +348,7 @@ export async function resolveTripCities(request: PlanRequest): Promise<string[]>
     messages: [
       {
         role: 'user',
-        content: `For a vacation to "${request.destination}" lasting ${nights} nights, which 2-3 cities should travelers stay in? Only city names in English, comma-separated. Example: Kotor, Budva`,
+        content: cityPrompt,
       },
     ],
   });
@@ -338,7 +376,7 @@ export async function generateTripPlan(request: PlanRequest, placesText: string)
 
   const message = await client.messages.create({
     model: MODEL,
-    max_tokens: 8000,
+    max_tokens: 16000,
     temperature: 0.5,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userContent }],

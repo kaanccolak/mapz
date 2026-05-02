@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { normalizeDepartureIata } from '@/lib/departure-airports';
 import { buildUserMessage, generateTripPlan, resolveTripCities } from '@/lib/claude';
 import {
+  fetchWithTimeout,
   formatPlacesLinesFromRadius,
   getCityCoords,
   getNearbyPlaces,
@@ -16,6 +17,25 @@ function isValidPeople(v: unknown): v is PlanRequest['people'] {
 
 function isValidTripType(v: unknown): v is PlanRequest['tripType'] {
   return v === 'tarih' || v === 'deniz' || v === 'doga' || v === 'karma';
+}
+
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const cityFallbackCoords: Record<string, { lat: number; lng: number }> = {
+  Kotor: { lat: 42.4247, lng: 18.7712 },
+  Budva: { lat: 42.2864, lng: 18.84 },
+  'Herceg Novi': { lat: 42.4531, lng: 18.5375 },
+  Podgorica: { lat: 42.4304, lng: 19.2594 },
+  Tivat: { lat: 42.4347, lng: 18.7133 },
+};
+
+const OTM_TIMEOUT_MS = 4000;
+
+function fallbackCoordsForCity(city: string): { lat: number; lng: number } | null {
+  const t = city.trim();
+  if (cityFallbackCoords[t]) return cityFallbackCoords[t];
+  const key = Object.keys(cityFallbackCoords).find((k) => k.toLowerCase() === t.toLowerCase());
+  return key ? cityFallbackCoords[key] : null;
 }
 
 function fallbackCitiesFromDestination(destination: string): string[] {
@@ -62,6 +82,11 @@ export async function POST(req: Request) {
       );
     }
 
+    const destAirRaw =
+      typeof body.destinationAirportIata === 'string' ? body.destinationAirportIata.trim().toUpperCase() : '';
+    const destinationAirportIata =
+      destAirRaw.length === 3 && /^[A-Z]{3}$/.test(destAirRaw) ? destAirRaw : undefined;
+
     const planRequest: PlanRequest = {
       destination,
       departureIata,
@@ -73,6 +98,7 @@ export async function POST(req: Request) {
       hasRentalCar,
       hasTicket,
       ...(hasTicket ? { arrivalTime, departureTime } : {}),
+      ...(destinationAirportIata ? { destinationAirportIata } : {}),
     };
 
     let cities: string[] = [];
@@ -85,42 +111,93 @@ export async function POST(req: Request) {
       cities = fallbackCitiesFromDestination(destination);
     }
 
-    const allLines: string[] = [];
     const lineKeys = new Set<string>();
     const otmKey = process.env.OPENTRIPMAP_API_KEY;
 
+    const allLines: string[] = [];
     if (otmKey) {
       for (const city of cities) {
+
+        let lat: number | undefined;
+        let lng: number | undefined;
+
         try {
-          const geo = await getCityCoords(city);
+          const geo = await fetchWithTimeout(getCityCoords(city), OTM_TIMEOUT_MS);
           if ('error' in geo && geo.error) {
             console.warn('[opentripmap] geoname', city, geo.error);
-            continue;
-          }
-          const lat = geo.lat;
-          const lon = geo.lon ?? geo.lng;
-          if (lat == null || lon == null || Number.isNaN(lat) || Number.isNaN(lon)) {
-            continue;
-          }
-          const nearby = await getNearbyPlaces(lat, lon, 5000, 20);
-          if ('error' in nearby && nearby.error) {
-            console.warn('[opentripmap] radius', city, nearby.error);
-            continue;
-          }
-          const chunk = formatPlacesLinesFromRadius(nearby);
-          for (const line of chunk) {
-            const key = line.toLowerCase();
-            if (lineKeys.has(key)) continue;
-            lineKeys.add(key);
-            allLines.push(line);
+          } else {
+            const la = geo.lat;
+            const lo = geo.lon ?? geo.lng;
+            if (la != null && lo != null && !Number.isNaN(la) && !Number.isNaN(lo)) {
+              lat = la;
+              lng = lo;
+            }
           }
         } catch (e) {
-          console.error('[opentripmap]', city, e);
+          const msg = e instanceof Error ? e.message : String(e);
+          if (msg === 'timeout') {
+            console.warn('[opentripmap] geoname timeout', city);
+          } else {
+            console.error('[opentripmap] geoname', city, e);
+          }
         }
+
+        if (lat == null || lng == null) {
+          const fb = fallbackCoordsForCity(city);
+          if (fb) {
+            lat = fb.lat;
+            lng = fb.lng;
+          }
+        }
+
+        if (lat == null || lng == null) {
+          await delay(500);
+          continue;
+        }
+
+        let nearby: Awaited<ReturnType<typeof getNearbyPlaces>>;
+        try {
+          nearby = await fetchWithTimeout(getNearbyPlaces(lat, lng, 5000, 20), OTM_TIMEOUT_MS);
+          if ('error' in nearby && nearby.error) {
+            console.warn('[opentripmap] radius', city, nearby.error);
+            throw new Error(String(nearby.error));
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (msg === 'timeout') {
+            console.warn('[opentripmap] radius timeout', city);
+          } else {
+            console.error('[opentripmap] radius', city, e);
+          }
+          const fb = fallbackCoordsForCity(city);
+          if (fb && (fb.lat !== lat || fb.lng !== lng)) {
+            try {
+              nearby = await fetchWithTimeout(getNearbyPlaces(fb.lat, fb.lng, 5000, 20), OTM_TIMEOUT_MS);
+              if ('error' in nearby && nearby.error) {
+                console.warn('[opentripmap] radius fallback', city, nearby.error);
+                nearby = { features: [] };
+              }
+            } catch {
+              nearby = { features: [] };
+            }
+          } else {
+            nearby = { features: [] };
+          }
+        }
+
+        for (const line of formatPlacesLinesFromRadius(nearby)) {
+          const key = line.toLowerCase();
+          if (lineKeys.has(key)) continue;
+          lineKeys.add(key);
+          allLines.push(line);
+        }
+
+        await delay(500);
       }
     }
 
-    const placesText = allLines.join('\n');
+    const topPlaces = allLines.slice(0, 20);
+    const placesText = topPlaces.join('\n');
     const prompt = buildUserMessage(planRequest, placesText);
     console.log('OpenTripMap mekan listesi:', placesText);
     console.log('Claude prompt:', prompt);

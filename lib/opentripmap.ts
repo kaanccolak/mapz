@@ -1,3 +1,10 @@
+export function fetchWithTimeout<T>(promise: Promise<T>, ms = 4000): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('timeout')), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
+
 type GeonameResponse = {
   lat?: number;
   lon?: number;
@@ -16,7 +23,7 @@ type RadiusResponse = {
   error?: string;
 };
 
-// Şehir adından koordinat al
+// Şehir adından koordinat al (timeout çağıran tarafında fetchWithTimeout ile sarılmalı)
 export async function getCityCoords(cityName: string): Promise<GeonameResponse> {
   const key = process.env.OPENTRIPMAP_API_KEY;
   if (!key) {
@@ -25,7 +32,7 @@ export async function getCityCoords(cityName: string): Promise<GeonameResponse> 
   const res = await fetch(
     `https://api.opentripmap.com/0.1/en/places/geoname?name=${encodeURIComponent(cityName)}&apikey=${key}`
   );
-  return res.json() as Promise<GeonameResponse>;
+  return (await res.json()) as GeonameResponse;
 }
 
 // Koordinat çevresindeki turistik yerleri getir
@@ -42,19 +49,7 @@ export async function getNearbyPlaces(
   const res = await fetch(
     `https://api.opentripmap.com/0.1/en/places/radius?radius=${radius}&lon=${lng}&lat=${lat}&kinds=interesting_places,foods,cultural,natural,historic&limit=${limit}&apikey=${key}`
   );
-  return res.json() as Promise<RadiusResponse>;
-}
-
-// Yer detayını getir (koordinat, açıklama vb.)
-export async function getPlaceDetail(xid: string): Promise<unknown> {
-  const key = process.env.OPENTRIPMAP_API_KEY;
-  if (!key) {
-    return { error: 'OPENTRIPMAP_API_KEY tanımlı değil' };
-  }
-  const res = await fetch(
-    `https://api.opentripmap.com/0.1/en/places/xid/${encodeURIComponent(xid)}?apikey=${key}`
-  );
-  return res.json();
+  return (await res.json()) as RadiusResponse;
 }
 
 /** OpenTripMap radius yanıtından prompt satırları üret */

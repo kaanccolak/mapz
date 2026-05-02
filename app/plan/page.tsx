@@ -2,12 +2,12 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccommodationPlan } from '@/components/AccommodationPlan';
 import { DayCard } from '@/components/DayCard';
 import { mapLegacyDepartureToIata, normalizeDepartureIata } from '@/lib/departure-airports';
 import { buildSkyscannerTasimaUrl } from '@/lib/iata';
-import type { PlanRequest, StoredTrip } from '@/types';
+import type { PlanRequest, StoredTrip, TripPlan } from '@/types';
 
 const MapView = dynamic(() => import('@/components/MapView').then((m) => m.MapView), {
   ssr: false,
@@ -19,6 +19,84 @@ const MapView = dynamic(() => import('@/components/MapView').then((m) => m.MapVi
 });
 
 const STORAGE_KEY = 'gezle-trip';
+const PLAN_REQUEST_KEY = 'planRequest';
+
+const STEPS = [
+  { icon: '🗺️', text: 'Konum analiz ediliyor...' },
+  { icon: '📍', text: 'Gezilecek yerler keşfediliyor...' },
+  { icon: '🤖', text: 'Plan oluşturuyor...' },
+  { icon: '🗓️', text: 'Gün gün program hazırlanıyor...' },
+  { icon: '✨', text: 'Son rötuşlar yapılıyor...' },
+] as const;
+
+function LoadingScreen({ destination }: { destination: string }) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const stepInterval = window.setInterval(() => {
+      setCurrentStep((prev) => (prev + 1) % STEPS.length);
+    }, 3000);
+
+    const progressInterval = window.setInterval(() => {
+      setProgress((prev) => Math.min(prev + 1, 95));
+    }, 150);
+
+    return () => {
+      window.clearInterval(stepInterval);
+      window.clearInterval(progressInterval);
+    };
+  }, []);
+
+  const step = STEPS[currentStep];
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-8 bg-[#0a0a0f]"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label="Plan oluşturuluyor"
+    >
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_50%,rgba(29,158,117,0.12)_0%,transparent_70%)]"
+        aria-hidden
+      />
+
+      <div className="relative h-20 w-20">
+        <div className="absolute inset-0 rounded-full border-[3px] border-white/[0.08]" aria-hidden />
+        <div
+          className="absolute inset-0 animate-gezle-plan-spin rounded-full border-[3px] border-transparent border-t-[#1d9e75] border-r-[#5dcaa5]"
+          aria-hidden
+        />
+        <div
+          className="absolute inset-3 animate-gezle-plan-spin-reverse rounded-full border-2 border-transparent border-t-[rgba(93,202,165,0.4)]"
+          aria-hidden
+        />
+        <div className="absolute inset-0 flex items-center justify-center text-2xl">{step.icon}</div>
+      </div>
+
+      <div className="text-center">
+        <div className="mb-2 text-[13px] uppercase tracking-[0.1em] text-white/40">Planlanıyor</div>
+        <div className="text-[28px] font-medium capitalize text-white">{destination}</div>
+      </div>
+
+      <div key={currentStep} className="h-6 animate-gezle-step-fade text-sm text-[#5dcaa5]">
+        {step.text}
+      </div>
+
+      <div className="w-[280px]">
+        <div className="h-[3px] overflow-hidden rounded-full bg-white/[0.08]">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#1d9e75] to-[#5dcaa5] transition-[width] duration-150 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <p className="mt-2 text-center text-[12px] text-white/30">Bu işlem 15-20 saniye sürebilir</p>
+      </div>
+    </div>
+  );
+}
 
 const peopleLabels: Record<PlanRequest['people'], string> = {
   yalniz: 'Yalnız',
@@ -57,6 +135,10 @@ function normalizeStoredTrip(raw: unknown): StoredTrip | null {
     ? normalizeDepartureIata(r.departureIata)
     : mapLegacyDepartureToIata(r.departureCity);
   const hasTicket = typeof r.hasTicket === 'boolean' ? r.hasTicket : false;
+  const destAir =
+    typeof r.destinationAirportIata === 'string' && /^[A-Za-z]{3}$/.test(r.destinationAirportIata.trim())
+      ? r.destinationAirportIata.trim().toUpperCase()
+      : undefined;
   const request: PlanRequest = {
     destination: r.destination,
     departureIata,
@@ -70,29 +152,102 @@ function normalizeStoredTrip(raw: unknown): StoredTrip | null {
     ...(hasTicket && typeof r.arrivalTime === 'string' && typeof r.departureTime === 'string'
       ? { arrivalTime: r.arrivalTime, departureTime: r.departureTime }
       : {}),
+    ...(destAir ? { destinationAirportIata: destAir } : {}),
   };
   return { plan: o.plan, request };
 }
 
 export default function PlanPage() {
   const router = useRouter();
+  const hasFetched = useRef(false);
+  const [mounted, setMounted] = useState(false);
   const [data, setData] = useState<StoredTrip | null | undefined>(undefined);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [generationDestination, setGenerationDestination] = useState('Tatil');
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set());
   const [selectedActivityIndex, setSelectedActivityIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      setData(null);
-      return;
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+
+    let cancelled = false;
+
+    async function bootstrap() {
+      setBootstrapError(null);
+      const pendingRaw = localStorage.getItem(PLAN_REQUEST_KEY);
+
+      if (pendingRaw) {
+        let request: PlanRequest;
+        try {
+          request = JSON.parse(pendingRaw) as PlanRequest;
+        } catch {
+          localStorage.removeItem(PLAN_REQUEST_KEY);
+          if (!cancelled) {
+            setData(null);
+            setBootstrapError('Kayıtlı istek okunamadı.');
+            setMounted(true);
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setGenerationDestination(request.destination?.trim() || 'Tatil');
+          setIsGeneratingPlan(true);
+          setMounted(true);
+        }
+
+        try {
+          const res = await fetch('/api/plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(request),
+          });
+          if (!res.ok) {
+            const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(errBody.error || 'Plan oluşturulamadı');
+          }
+          const plan = (await res.json()) as TripPlan;
+          if (cancelled) return;
+          const stored: StoredTrip = { plan, request };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+          localStorage.removeItem(PLAN_REQUEST_KEY);
+          setData(stored);
+        } catch (e) {
+          if (!cancelled) {
+            localStorage.removeItem(PLAN_REQUEST_KEY);
+            setData(null);
+            setBootstrapError(e instanceof Error ? e.message : 'Plan oluşturulamadı');
+          }
+        } finally {
+          if (!cancelled) setIsGeneratingPlan(false);
+        }
+        return;
+      }
+
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        if (!cancelled) {
+          setData(null);
+          setMounted(true);
+        }
+        return;
+      }
+      try {
+        const parsed = normalizeStoredTrip(JSON.parse(raw));
+        if (!cancelled) setData(parsed);
+      } catch {
+        if (!cancelled) setData(null);
+      }
+      if (!cancelled) setMounted(true);
     }
-    try {
-      const parsed = normalizeStoredTrip(JSON.parse(raw));
-      setData(parsed);
-    } catch {
-      setData(null);
-    }
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const removeActivity = useCallback((id: string) => {
@@ -120,24 +275,31 @@ export default function PlanPage() {
     return buildSkyscannerTasimaUrl({
       departureIata: data.request.departureIata,
       destination: data.request.destination,
+      destinationAirportIata: data.request.destinationAirportIata,
       startDate: data.request.startDate,
       endDate: data.request.endDate,
       people: data.request.people,
     });
   }, [data]);
 
-  if (data === undefined) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#e5e7eb] border-t-[#1d9e75]" />
-      </div>
-    );
+  if (!mounted) {
+    return <div className="min-h-screen bg-[#0a0a0f]" aria-hidden />;
+  }
+
+  if (isGeneratingPlan) {
+    return <LoadingScreen destination={generationDestination} />;
   }
 
   if (data === null) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-white px-4">
-        <p className="text-[15px] text-[#6b7280]">Kayıtlı plan bulunamadı.</p>
+        {bootstrapError ? (
+          <p className="max-w-md text-center text-[15px] text-red-600" role="alert">
+            {bootstrapError}
+          </p>
+        ) : (
+          <p className="text-[15px] text-[#6b7280]">Kayıtlı plan bulunamadı.</p>
+        )}
         <button
           type="button"
           onClick={() => router.push('/')}
@@ -147,6 +309,10 @@ export default function PlanPage() {
         </button>
       </div>
     );
+  }
+
+  if (data === undefined) {
+    return <div className="min-h-screen bg-[#f8f8f7]" />;
   }
 
   const req = data.request;
