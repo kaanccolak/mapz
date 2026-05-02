@@ -24,9 +24,11 @@ const budgetLabels: Record<string, string> = {
 interface PdfExportProps {
   plan: TripPlan;
   request: PlanRequest;
+  /** Dar sidebar için küçük buton */
+  compact?: boolean;
 }
 
-export default function PdfExport({ plan, request }: PdfExportProps) {
+export default function PdfExport({ plan, request, compact }: PdfExportProps) {
   const [loading, setLoading] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -79,20 +81,21 @@ export default function PdfExport({ plan, request }: PdfExportProps) {
         onClick={() => void exportPdf()}
         disabled={loading}
         style={{
-          padding: '10px 20px',
+          padding: compact ? '6px 12px' : '10px 20px',
           background: loading ? 'rgba(255,255,255,0.1)' : '#1d9e75',
           color: '#fff',
           border: 'none',
-          borderRadius: 10,
-          fontSize: 13,
+          borderRadius: compact ? 8 : 10,
+          fontSize: compact ? 11 : 13,
           fontWeight: 500,
           cursor: loading ? 'not-allowed' : 'pointer',
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: compact ? 6 : 8,
+          whiteSpace: 'nowrap',
         }}
       >
-        {loading ? '⏳ PDF hazırlanıyor...' : '📄 PDF İndir'}
+        {loading ? (compact ? '⏳…' : '⏳ PDF hazırlanıyor...') : compact ? '📄 PDF' : '📄 PDF İndir'}
       </button>
 
       <div

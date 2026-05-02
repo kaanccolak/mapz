@@ -6,7 +6,9 @@ import { peopleToAdults } from '@/lib/iata';
 
 const MODEL = 'claude-sonnet-4-5';
 
-const SYSTEM_PROMPT = `Sen bir JSON üreticisin. Yanıtın her zaman sadece geçerli bir JSON objesi olmalı. Asla açıklama, yorum veya markdown kullanma. { ile başla } ile bitir.
+const SYSTEM_PROMPT = `Sen bir JSON üreticisin. Yanıtın her zaman sadece geçerli bir JSON objesi olmalı. { ile başla } ile bitir. Asla açıklama yazma. Aktivite açıklamaları maksimum 10 kelime olsun.
+
+Yanıtın kısa ve öz olsun. Her aktivite için description maksimum 1 cümle olsun. Gereksiz detay yazma.
 
 Sen Türkçe konuşan bir seyahat planlama asistanısın.
 Kullanıcının verdiği bilgilere göre detaylı bir seyahat planı oluştur.
@@ -16,12 +18,25 @@ KURALLAR:
 - Kullanıcı mesajında uçuş iniş/kalkış saatleri veya "bilet yok" varsayımları varsa: ilk günü iniş ve transfer sonrasından başlat, son günü havalimanına en az 2 saat önce varışı gözeterek bitir; ilk ve son günde daha az aktivite olabilir ve bu normaldir
 - Kullanıcı mesajında uçak bileti olmadığı açıkça belirtilmişse: kullanıcı mesajındaki ilk/son gün ve havalimanı adı yasağı kuralları, aşağıdaki günlük yemek zorunluluğundan önceliklidir; son gün yalnızca ayrılış/transfer ise o gün için kahvaltı/öğün sayısı zorunluluğunu uygulama
 - Her gün 1 kahvaltı + 1 öğle yemeği + 1 akşam yemeği + 1 kafe molası olsun (uçak bileti yok ve son gün yalnızca transfer olan istisna hariç)
+KAHVALTI:
+- Her gün mutlaka kahvaltı aktivitesi olsun. "Otelde kahvaltı" YAZMA.
+- Kahvaltı için OpenTripMap listesindeki kafeler veya restoranlardan seç, yoksa o bölgede gerçekten var olan bir kafe/restoran öner.
+- Her gün 08:00-09:30 arasında kahvaltı aktivitesi olsun.
+- Gün asla 10:00'dan önce bir aktivite olmadan başlamasın.
+
 - Aktiviteler arası ulaşım için 15-20 dakika buffer ekle
 - Gerçekçi süreler ver
 - Restoran ve mekan isimleri gerçek ve o şehirde var olan yerler olsun
 - Araç varsa çevre şehirlere günübirlik geziler ekle
 - Bütçeye uygun öneriler yap
 - Balayı/çift seyahatlerinde romantik dokunuşlar ekle
+
+ÖNEMLİ KURALLAR:
+- Aynı mekanı birden fazla günde ASLA tekrarlama
+- Tüm plan boyunca her mekan sadece bir kez kullanılsın
+- Kahvaltı, öğle, akşam için her gün FARKLI mekanlar seç
+- Köklü, uzun süredir faaliyet gösteren turistik mekanları tercih et
+- OpenTripMap listesinde yeterli mekan yoksa kendi bilginden gerçek mekan ekleyebilirsin; yine de hiçbir mekanı tekrarlama
 
 BÜTÇE DAĞILIMI (budgetBreakdown):
 - Kullanıcı mesajında "bu bütçeye dahil olanlar" listelenir. Yalnızca dahil edilen kalemler için anlamlı tutar tahmini yaz.
@@ -124,8 +139,8 @@ export function buildUserMessage(req: PlanRequest, placesText: string): string {
     placesText.trim().length > 0
       ? `
 Aşağıda ${req.destination} için OpenTripMap'ten alınan gerçek mekanların listesi var.
-Plan yaparken MUTLAKA bu listeden seç. Uydurma mekan ekleme.
-Her aktivitenin lat ve lng değerlerini bu listeden al — koordinatlar %100 doğru olacak.
+Öncelikle bu listeden seç; listedeki mekanlar için lat ve lng değerlerini listeden al.
+Liste tüm günler için yeterli benzersiz mekan sağlamıyorsa, gerçek ve o bölgede var olan mekanları kendi bilginden ekle (ÖNEMLİ KURALLAR: planda mekan tekrarı yok). Listede olmayan mekanlar için koordinat kurallarına uy.
 
 MEKAN LİSTESİ:
 ${placesText}
@@ -393,7 +408,7 @@ export async function generateTripPlan(request: PlanRequest, placesText: string)
 
   const message = await client.messages.create({
     model: MODEL,
-    max_tokens: 16000,
+    max_tokens: 10000,
     temperature: 0.5,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userContent }],

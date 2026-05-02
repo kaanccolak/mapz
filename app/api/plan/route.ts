@@ -158,7 +158,7 @@ export async function POST(req: Request) {
 
         let nearby: Awaited<ReturnType<typeof getNearbyPlaces>>;
         try {
-          nearby = await fetchWithTimeout(getNearbyPlaces(lat, lng, 5000, 20), OTM_TIMEOUT_MS);
+          nearby = await fetchWithTimeout(getNearbyPlaces(lat, lng, 5000, 50), OTM_TIMEOUT_MS);
           if ('error' in nearby && nearby.error) {
             console.warn('[opentripmap] radius', city, nearby.error);
             throw new Error(String(nearby.error));
@@ -173,7 +173,7 @@ export async function POST(req: Request) {
           const fb = fallbackCoordsForCity(city);
           if (fb && (fb.lat !== lat || fb.lng !== lng)) {
             try {
-              nearby = await fetchWithTimeout(getNearbyPlaces(fb.lat, fb.lng, 5000, 20), OTM_TIMEOUT_MS);
+              nearby = await fetchWithTimeout(getNearbyPlaces(fb.lat, fb.lng, 5000, 50), OTM_TIMEOUT_MS);
               if ('error' in nearby && nearby.error) {
                 console.warn('[opentripmap] radius fallback', city, nearby.error);
                 nearby = { features: [] };
@@ -197,7 +197,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const topPlaces = allLines.slice(0, 20);
+    const topPlaces = allLines.slice(0, 40);
     const placesText = topPlaces.join('\n');
     const prompt = buildUserMessage(planRequest, placesText);
     console.log('OpenTripMap mekan listesi:', placesText);

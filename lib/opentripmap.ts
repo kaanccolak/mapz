@@ -40,7 +40,7 @@ export async function getNearbyPlaces(
   lat: number,
   lng: number,
   radius = 5000,
-  limit = 20
+  limit = 50
 ): Promise<RadiusResponse> {
   const key = process.env.OPENTRIPMAP_API_KEY;
   if (!key) {

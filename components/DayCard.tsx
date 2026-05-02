@@ -33,7 +33,7 @@ export function DayCard({
   const suppressTimes = !hasTicket && (dayIndex === 0 || dayIndex === totalDays - 1);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col [&>*]:mb-1.5 [&>*:last-child]:mb-0">
       {day.activities.map((activity, index) => {
         const id = activityId(day.dayNumber, index);
         return (
