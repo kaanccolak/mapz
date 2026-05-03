@@ -1,5 +1,10 @@
 import type { PlanRequest } from '@/types';
 
+/** Yetişkin sayısı (PlanRequest.groupDetails). */
+export function adultsFromRequest(req: PlanRequest): number {
+  return Math.max(1, req.groupDetails?.adults ?? 1);
+}
+
 /** Skyscanner uçuş URL'si için YYMMDD (örn. 2026-09-04 → 260904) */
 export function dateToSkyscannerSegment(isoDate: string): string {
   const d = new Date(`${isoDate}T12:00:00`);
@@ -10,6 +15,7 @@ export function dateToSkyscannerSegment(isoDate: string): string {
   return `${yy}${mm}${dd}`;
 }
 
+/** @deprecated Eski kod; tercihen adultsFromRequest(req) kullanın. */
 export function peopleToAdults(people: PlanRequest['people']): number {
   switch (people) {
     case 'yalniz':
@@ -107,7 +113,7 @@ export function buildSkyscannerTasimaUrl(params: {
   destinationAirportIata?: string;
   startDate: string;
   endDate: string;
-  people: PlanRequest['people'];
+  groupDetails: PlanRequest['groupDetails'];
 }): string {
   const origin = params.departureIata.trim().toUpperCase();
   const picked = params.destinationAirportIata?.trim().toUpperCase() ?? '';
@@ -117,12 +123,23 @@ export function buildSkyscannerTasimaUrl(params: {
       : resolveSkyscannerDestinationIATA(params.destination);
   const out = dateToSkyscannerSegment(params.startDate);
   const inbound = dateToSkyscannerSegment(params.endDate);
-  const adults = peopleToAdults(params.people);
+  const gd = params.groupDetails;
+  const adults = Math.max(1, gd.adults);
+  const childrenv2 =
+    gd.children > 0
+      ? gd.childAges
+          .slice(0, gd.children)
+          .map((a) => {
+            const n = typeof a === 'number' ? a : Number(a);
+            return Number.isFinite(n) ? String(Math.min(17, Math.max(0, Math.floor(n)))) : '8';
+          })
+          .join('|')
+      : '';
   const base = `https://www.skyscanner.com.tr/tasima/ucak-bileti/${origin}/${dest}/${out}/${inbound}/`;
   const qs = new URLSearchParams({
     adultsv2: String(adults),
     cabinclass: 'economy',
-    childrenv2: '',
+    childrenv2,
     ref: 'home',
     rtn: '1',
     outboundaltsenabled: 'false',

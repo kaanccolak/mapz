@@ -4,9 +4,62 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { ALLOWED_DEPARTURE_IATA } from '@/lib/departure-airports';
 import { searchDestinations, type Airport, type Destination } from '@/lib/destinations';
-import type { BudgetIncludes, DepartureIata, PlanRequest } from '@/types';
+import { mergeGroupDetails, type BudgetIncludes, type DepartureIata, type PlanRequest } from '@/types';
 
 const PLAN_REQUEST_KEY = 'planRequest';
+
+const stepBtnClass =
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.08] text-lg font-medium text-white/90 transition hover:bg-white/12 active:scale-95';
+
+function NumberStepRow({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="text-[12px] text-white/50">{label}</span>
+      <div className="flex h-11 min-w-0 items-stretch gap-2 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-1.5">
+        <button
+          type="button"
+          className={stepBtnClass}
+          onClick={() => onChange(Math.max(min, value - 1))}
+          aria-label="Azalt"
+        >
+          −
+        </button>
+        <input
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(e) => {
+            const n = parseInt(e.target.value, 10);
+            if (Number.isNaN(n)) onChange(min);
+            else onChange(Math.min(max, Math.max(min, n)));
+          }}
+          className="min-w-0 flex-1 bg-transparent text-center text-[15px] text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <button
+          type="button"
+          className={stepBtnClass}
+          onClick={() => onChange(Math.min(max, value + 1))}
+          aria-label="Arttır"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const DEPARTURE_AIRPORTS: { code: DepartureIata; name: string }[] = [
   { code: 'IST', name: 'İstanbul (IST) — Atatürk' },
@@ -119,6 +172,13 @@ export function HeroSearch({ onError }: HeroSearchProps) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [people, setPeople] = useState<PlanRequest['people']>('cift');
+  const prevPeopleRef = useRef<PlanRequest['people']>('cift');
+  const [familyAdults, setFamilyAdults] = useState(2);
+  const [familyChildren, setFamilyChildren] = useState(0);
+  const [familyChildAges, setFamilyChildAges] = useState<number[]>([]);
+  const [familyRooms, setFamilyRooms] = useState(1);
+  const [friendsCount, setFriendsCount] = useState(2);
+  const [friendsRooms, setFriendsRooms] = useState(1);
   const [tripType, setTripType] = useState<PlanRequest['tripType']>('karma');
   const [budget, setBudget] = useState('');
   const [budgetDisplay, setBudgetDisplay] = useState('');
@@ -151,6 +211,30 @@ export function HeroSearch({ onError }: HeroSearchProps) {
 
     const formatted = new Intl.NumberFormat('tr-TR').format(Number(numbers));
     setBudgetDisplay(formatted + ' ₺');
+  };
+
+  useEffect(() => {
+    if (people === 'aile' && prevPeopleRef.current !== 'aile') {
+      setFamilyAdults(2);
+      setFamilyChildren(0);
+      setFamilyChildAges([]);
+      setFamilyRooms(1);
+    }
+    if (people === 'arkadasgrubu' && prevPeopleRef.current !== 'arkadasgrubu') {
+      setFriendsCount(2);
+      setFriendsRooms(1);
+    }
+    prevPeopleRef.current = people;
+  }, [people]);
+
+  const setFamilyChildrenCount = (next: number) => {
+    const c = Math.min(6, Math.max(0, next));
+    setFamilyChildren(c);
+    setFamilyChildAges((prev) => {
+      const arr = prev.slice(0, c);
+      while (arr.length < c) arr.push(8);
+      return arr;
+    });
   };
 
   useEffect(() => {
@@ -267,12 +351,25 @@ export function HeroSearch({ onError }: HeroSearchProps) {
         ? destinationArrivalIata.trim().toUpperCase()
         : undefined;
 
+    const groupPartial =
+      people === 'aile'
+        ? {
+            adults: familyAdults,
+            children: familyChildren,
+            rooms: familyRooms,
+            childAges: familyChildAges.slice(0, familyChildren),
+          }
+        : people === 'arkadasgrubu'
+          ? { adults: friendsCount, rooms: friendsRooms }
+          : undefined;
+
     const request: PlanRequest = {
       destination: destPayload,
       departureIata: dep as DepartureIata,
       startDate,
       endDate,
       people,
+      groupDetails: mergeGroupDetails(people, groupPartial),
       tripType,
       budget: budget.trim(),
       budgetIncludes,
@@ -541,6 +638,87 @@ export function HeroSearch({ onError }: HeroSearchProps) {
             <option value="karma">Karma</option>
           </select>
         </label>
+      </div>
+
+      <div
+        className={`mt-3 grid overflow-hidden transition-[grid-template-rows] duration-300 ease-out ${
+          people === 'aile' || people === 'arkadasgrubu' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={`space-y-3 border-t border-white/10 pt-3 transition-opacity duration-300 ease-out ${
+              people === 'aile' || people === 'arkadasgrubu' ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          >
+            {people === 'aile' ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <NumberStepRow
+                  label="Yetişkin sayısı"
+                  value={familyAdults}
+                  min={2}
+                  max={10}
+                  onChange={setFamilyAdults}
+                />
+                <NumberStepRow
+                  label="Çocuk sayısı"
+                  value={familyChildren}
+                  min={0}
+                  max={6}
+                  onChange={setFamilyChildrenCount}
+                />
+                <NumberStepRow
+                  label="Oda sayısı"
+                  value={familyRooms}
+                  min={1}
+                  max={5}
+                  onChange={setFamilyRooms}
+                />
+                {familyChildren > 0 ? (
+                  <div className="sm:col-span-2">
+                    <span className="mb-2 block text-[12px] text-white/50">Çocuk yaşları</span>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+                      {familyChildAges.slice(0, familyChildren).map((age, idx) => (
+                        <NumberStepRow
+                          key={idx}
+                          label={`${idx + 1}. çocuk yaşı`}
+                          value={age}
+                          min={0}
+                          max={17}
+                          onChange={(n) =>
+                            setFamilyChildAges((prev) => {
+                              const next = [...prev];
+                              next[idx] = n;
+                              return next;
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {people === 'arkadasgrubu' ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <NumberStepRow
+                  label="Kişi sayısı"
+                  value={friendsCount}
+                  min={2}
+                  max={20}
+                  onChange={setFriendsCount}
+                />
+                <NumberStepRow
+                  label="Oda sayısı"
+                  value={friendsRooms}
+                  min={1}
+                  max={10}
+                  onChange={setFriendsRooms}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       <div className="mt-3 w-full">

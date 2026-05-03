@@ -132,6 +132,53 @@ export function mergeBudgetIncludes(partial?: Partial<BudgetIncludes> | null): B
   };
 }
 
+export type PlanPeople = 'yalniz' | 'cift' | 'aile' | 'arkadasgrubu';
+
+export interface GroupDetails {
+  adults: number;
+  children: number;
+  childAges: number[];
+  rooms: number;
+}
+
+export function defaultGroupDetails(people: PlanPeople): GroupDetails {
+  if (people === 'yalniz') return { adults: 1, children: 0, childAges: [], rooms: 1 };
+  if (people === 'cift') return { adults: 2, children: 0, childAges: [], rooms: 1 };
+  if (people === 'aile') return { adults: 2, children: 0, childAges: [], rooms: 1 };
+  return { adults: 2, children: 0, childAges: [], rooms: 1 };
+}
+
+function clampInt(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.floor(Number.isFinite(n) ? n : min)));
+}
+
+/** API / eski kayıtlar için grup alanlarını doğrula ve varsayılanlarla birleştir. */
+export function mergeGroupDetails(
+  people: PlanPeople,
+  partial?: Partial<GroupDetails> | null,
+): GroupDetails {
+  if (people === 'yalniz') return { adults: 1, children: 0, childAges: [], rooms: 1 };
+  if (people === 'cift') return { adults: 2, children: 0, childAges: [], rooms: 1 };
+  if (people === 'arkadasgrubu') {
+    const d = defaultGroupDetails(people);
+    const adults = clampInt(partial?.adults ?? d.adults, 2, 20);
+    const rooms = clampInt(partial?.rooms ?? d.rooms, 1, 10);
+    return { adults, children: 0, childAges: [], rooms };
+  }
+  const d = defaultGroupDetails('aile');
+  const adults = clampInt(partial?.adults ?? d.adults, 2, 10);
+  const children = clampInt(partial?.children ?? d.children, 0, 6);
+  const rooms = clampInt(partial?.rooms ?? d.rooms, 1, 5);
+  const rawAges = Array.isArray(partial?.childAges) ? partial.childAges : [];
+  const childAges: number[] = [];
+  for (let i = 0; i < children; i++) {
+    const v = rawAges[i];
+    const num = typeof v === 'number' ? v : Number(v);
+    childAges.push(Number.isFinite(num) ? clampInt(num, 0, 17) : 8);
+  }
+  return { adults, children, childAges, rooms };
+}
+
 export interface PlanRequest {
   destination: string;
   /** Kalkış havalimanı IATA (form dropdown) */
@@ -140,7 +187,9 @@ export interface PlanRequest {
   destinationAirportIata?: string;
   startDate: string;
   endDate: string;
-  people: 'yalniz' | 'cift' | 'aile' | 'arkadasgrubu';
+  people: PlanPeople;
+  /** Konaklama / Skyscanner / Claude için yetişkin, çocuk, yaşlar, oda */
+  groupDetails: GroupDetails;
   tripType: 'tarih' | 'deniz' | 'doga' | 'karma';
   budget: string;
   /** Toplam bütçeye hangi harcama gruplarının dahil olduğu */

@@ -3,6 +3,7 @@
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { useRef, useState } from 'react';
+import type { FlightReservationLeg, ReservationData } from '@/components/ReservationModal';
 import type { Activity, PlanRequest, TripPlan } from '@/types';
 
 const peopleLabels: Record<PlanRequest['people'], string> = {
@@ -25,11 +26,91 @@ interface PdfExportProps {
   plan: TripPlan;
   request: PlanRequest;
   expenses: PdfExpenses;
+  reservationData?: ReservationData;
   /** Dar sidebar için küçük buton */
   compact?: boolean;
 }
 
-export default function PdfExport({ plan, request, expenses, compact }: PdfExportProps) {
+/** İndirilen PDF dosya adı: örn. "Karadağ Planı" (başlığın ilk kelimesi veya destinasyon). */
+function buildPdfDownloadBaseName(plan: TripPlan, request: PlanRequest): string {
+  const title = plan.tripTitle?.trim();
+  if (title) {
+    const first = title.split(/\s+/)[0]?.trim();
+    if (first) return `${first} Planı`;
+  }
+  const dest = request.destination.trim().split(/[,;]/)[0]?.trim() || 'Gezle';
+  return `${dest} Planı`;
+}
+
+function sanitizePdfFileName(name: string): string {
+  const cleaned = name.replace(/[<>:"/\\|?*]+/g, '').replace(/\s+/g, ' ').trim();
+  return cleaned.replace(/^\.+|\.+$/g, '') || 'Gezle Plani';
+}
+
+function flightLegHasPdfContent(f?: FlightReservationLeg): boolean {
+  if (!f) return false;
+  return [f.airline, f.flightNumber, f.pnr, f.departureTime].some((x) => String(x).trim());
+}
+
+function hotelHasPdfContent(h: ReservationData['hotels'][number]): boolean {
+  return [h.name, h.reservationNumber, h.checkIn, h.checkInTime, h.checkOut, h.checkOutTime].some((x) =>
+    String(x).trim(),
+  );
+}
+
+function formatPdfDate(isoDate: string): string {
+  const s = String(isoDate).trim();
+  if (!s) return '—';
+  const d = new Date(`${s}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function formatPdfTime(t: string): string {
+  const s = String(t).trim();
+  return s || '—';
+}
+
+function reservationHasPdfContent(data: ReservationData | undefined): boolean {
+  if (!data) return false;
+  if (flightLegHasPdfContent(data.outboundFlight)) return true;
+  if (flightLegHasPdfContent(data.returnFlight)) return true;
+  return data.hotels.some(hotelHasPdfContent);
+}
+
+function pdfFlightLegBlock(leg: FlightReservationLeg, heading: string) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: '#374151',
+          marginBottom: 6,
+          letterSpacing: '0.02em',
+        }}
+      >
+        {heading}
+      </div>
+      <div style={{ fontSize: 13, color: '#1f2937', marginBottom: 4, lineHeight: 1.5 }}>
+        {[leg.airline, leg.flightNumber]
+          .map((x) => String(x).trim())
+          .filter(Boolean)
+          .join(' ')}
+        {String(leg.pnr).trim() ? ` | PNR: ${String(leg.pnr).trim()}` : ''}
+      </div>
+      <div style={{ fontSize: 13, color: '#6b7280' }}>Kalkış: {formatPdfTime(leg.departureTime)}</div>
+    </div>
+  );
+}
+
+export default function PdfExport({
+  plan,
+  request,
+  expenses,
+  reservationData,
+  compact,
+}: PdfExportProps) {
   const [loading, setLoading] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -60,8 +141,8 @@ export default function PdfExport({ plan, request, expenses, compact }: PdfExpor
         pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
-      const fileTitle = (plan.tripTitle || request.destination).replace(/[\s&]/g, '_');
-      pdf.save(`${fileTitle}.pdf`);
+      const baseName = buildPdfDownloadBaseName(plan, request);
+      pdf.save(`${sanitizePdfFileName(baseName)}.pdf`);
     } catch (err) {
       console.error('PDF hatası:', err);
     } finally {
@@ -82,21 +163,26 @@ export default function PdfExport({ plan, request, expenses, compact }: PdfExpor
         onClick={() => void exportPdf()}
         disabled={loading}
         style={{
-          padding: compact ? '6px 12px' : '10px 20px',
+          padding: compact ? '9px 14px' : '12px 22px',
           background: loading ? 'rgba(255,255,255,0.1)' : '#1d9e75',
           color: '#fff',
           border: 'none',
-          borderRadius: compact ? 8 : 10,
-          fontSize: compact ? 11 : 13,
-          fontWeight: 500,
+          borderRadius: compact ? 10 : 10,
+          fontSize: compact ? 12 : 14,
+          fontWeight: 600,
+          letterSpacing: compact ? '0.01em' : '0.02em',
           cursor: loading ? 'not-allowed' : 'pointer',
           display: 'flex',
           alignItems: 'center',
-          gap: compact ? 6 : 8,
+          justifyContent: 'center',
+          gap: compact ? 7 : 8,
           whiteSpace: 'nowrap',
+          textAlign: 'center',
+          lineHeight: 1.25,
+          minHeight: compact ? 40 : 44,
         }}
       >
-        {loading ? (compact ? '⏳…' : '⏳ PDF hazırlanıyor...') : compact ? '📄 PDF' : '📄 PDF İndir'}
+        {loading ? (compact ? '⏳…' : '⏳ Plan hazırlanıyor...') : '📄 Planı Paylaş'}
       </button>
 
       <div
@@ -324,6 +410,54 @@ export default function PdfExport({ plan, request, expenses, compact }: PdfExpor
               </span>
             </div>
           </div>
+
+          {reservationHasPdfContent(reservationData) ? (
+            <div
+              style={{
+                padding: '16px',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                marginTop: 16,
+              }}
+            >
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#1d9e75', margin: '0 0 12px 0' }}>
+                Rezervasyon Bilgilerim
+              </h2>
+
+              {(() => {
+                const out = reservationData?.outboundFlight;
+                if (!out || !flightLegHasPdfContent(out)) return null;
+                return pdfFlightLegBlock(out, '✈️ GİDİŞ UÇUŞU');
+              })()}
+              {(() => {
+                const ret = reservationData?.returnFlight;
+                if (!ret || !flightLegHasPdfContent(ret)) return null;
+                return pdfFlightLegBlock(ret, '✈️ DÖNÜŞ UÇUŞU');
+              })()}
+
+              {(reservationData?.hotels ?? []).filter(hotelHasPdfContent).map((h, hi, arr) => (
+                <div
+                  key={h.id}
+                  style={{
+                    marginBottom: hi < arr.length - 1 ? 14 : 0,
+                    paddingBottom: hi < arr.length - 1 ? 14 : 0,
+                    borderBottom: hi < arr.length - 1 ? '1px solid #f3f4f6' : 'none',
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 }}>
+                    🏨 {String(h.name).trim() || 'Otel'}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#4b5563', marginBottom: 4 }}>
+                    Rezervasyon No: {String(h.reservationNumber).trim() || '—'}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
+                    Check-in: {formatPdfDate(h.checkIn)} {formatPdfTime(h.checkInTime)} | Check-out:{' '}
+                    {formatPdfDate(h.checkOut)} {formatPdfTime(h.checkOutTime)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     </>

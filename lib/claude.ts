@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { assignBookingUrlsToHotelSuggestions } from '@/lib/booking';
 import { tripNightsBetween } from '@/lib/opentripmap';
 import { mergeBudgetIncludes, type HotelSuggestion, type PlanRequest, type TripPlan } from '@/types';
-import { peopleToAdults } from '@/lib/iata';
+import { adultsFromRequest } from '@/lib/iata';
 
 const MODEL = 'claude-sonnet-4-5';
 
@@ -124,7 +124,8 @@ export function buildUserMessage(req: PlanRequest, placesText: string): string {
     doga: 'Doğa',
     karma: 'Karma',
   };
-  const adults = peopleToAdults(req.people);
+  const gd = req.groupDetails;
+  const adults = adultsFromRequest(req);
   const bi = mergeBudgetIncludes(req.budgetIncludes);
   const budgetIncludesText: string[] = [];
   if (bi.flight) budgetIncludesText.push('uçak bileti');
@@ -181,11 +182,12 @@ Bitiş tarihi (check-out referansı): ${req.endDate}
 Tatil tipi: ${tripLabels[req.tripType]}
 Toplam bütçe: ${req.budget} TL
 Bütçeye dahil olan kalemler: ${budgetIncludesText.join(', ') || 'belirtilmedi'}
-Kişi sayısı: ${peopleMap[req.people]}
+Kimlerle: ${peopleMap[req.people]}.
+Grup (plan ve konaklama uyumu için): ${gd.adults} yetişkin${gd.children > 0 ? `, ${gd.children} çocuk (yaşlar: ${gd.childAges.slice(0, gd.children).join(', ')})` : ', çocuk yok'}, ${gd.rooms} oda. Bu grup için gerçekçi tempo ve (varsa) çocuk dostu aktiviteler düşün.
 Bu bütçeye göre uygun otel kategorisi, restoranlar ve aktiviteler öner.
 Bütçe dağılımını (budgetBreakdown) yalnızca bütçeye dahil olan kalemler için doldur; dahil olmayan kalem için boş string "" kullan (örn. uçak listede yoksa "ucak": "").
 Araç kiralama: ${req.hasRentalCar ? 'Evet, araçlı' : 'Hayır, araçsız'}
-group_adults (yetişkin sayısı, sunucu Booking linkinde kullanır): ${adults}
+Yetişkin sayısı (özet): ${adults}
 
 Konaklama önerilerinde hotelSuggestions içindeki "category" alanını toplam bütçe ve dahil olan kalemlere uygun seç.
 ${flightBlock}

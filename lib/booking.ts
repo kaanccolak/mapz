@@ -1,22 +1,32 @@
-import { peopleToAdults } from '@/lib/iata';
-import type { HotelSuggestion, PlanRequest } from '@/types';
+import type { GroupDetails, HotelSuggestion, PlanRequest } from '@/types';
 
-export function generateBookingUrl(
+/** Booking.com arama URL’si (grup, tarih, çocuk yaşları). */
+export function buildBookingSearchUrl(
   city: string,
   checkin: string,
   checkout: string,
-  adults: number,
-  totalBudget: number,
-  nights: number
+  gd: GroupDetails,
 ): string {
-  const n = Math.max(1, nights);
-  const accommodationBudget = totalBudget * 0.3;
-  const perNightTotal = accommodationBudget / n;
-  const perNightEur = Math.round(perNightTotal / 35);
-  const minPrice = Math.round(perNightEur * 0.4);
-  const maxPrice = perNightEur;
-
-  return `https://www.booking.com/searchresults.tr.html?ss=${encodeURIComponent(city)}&checkin=${checkin}&checkout=${checkout}&group_adults=${adults}&price=${minPrice}-${maxPrice}&currency=EUR`;
+  const adults = Math.max(1, gd.adults);
+  const rooms = Math.max(1, gd.rooms);
+  const children = Math.max(0, gd.children);
+  const parts: string[] = [
+    `ss=${encodeURIComponent(city)}`,
+    'lang=tr',
+    `checkin=${checkin}`,
+    `checkout=${checkout}`,
+    `group_adults=${adults}`,
+    `no_rooms=${rooms}`,
+    `group_children=${children}`,
+  ];
+  const ages = gd.childAges.slice(0, children);
+  for (let i = 0; i < children; i++) {
+    const raw = ages[i];
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    const age = Number.isFinite(n) ? Math.min(17, Math.max(0, Math.floor(n))) : 8;
+    parts.push(`age=${age}`);
+  }
+  return `https://www.booking.com/searchresults.tr.html?${parts.join('&')}`;
 }
 
 function addDaysIso(iso: string, delta: number): string {
@@ -31,15 +41,13 @@ function addDaysIso(iso: string, delta: number): string {
   return `${yy}-${mm}-${dd}`;
 }
 
-/** Şehir segmentlerine göre check-in/out tarihleri üretir ve Booking arama URL'sini bütçe fiyat filtresiyle doldurur. */
+/** Şehir segmentlerine göre check-in/out tarihleri üretir ve Booking arama URL’sini doldurur. */
 export function assignBookingUrlsToHotelSuggestions(
   hotels: HotelSuggestion[],
-  request: PlanRequest
+  request: PlanRequest,
 ): HotelSuggestion[] {
   if (!hotels?.length) return hotels;
-  const digits = request.budget.replace(/\D/g, '');
-  const totalBudget = Number(digits) || 0;
-  const adults = peopleToAdults(request.people);
+  const gd = request.groupDetails;
   let cursor = request.startDate;
 
   return hotels.map((h) => {
@@ -47,7 +55,7 @@ export function assignBookingUrlsToHotelSuggestions(
     const checkin = cursor;
     const checkout = addDaysIso(checkin, nights);
     cursor = checkout;
-    const bookingUrl = generateBookingUrl(h.city, checkin, checkout, adults, totalBudget, nights);
+    const bookingUrl = buildBookingSearchUrl(h.city, checkin, checkout, gd);
     return { ...h, bookingUrl };
   });
 }

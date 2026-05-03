@@ -1,19 +1,25 @@
 'use client';
 
-import type { HotelSuggestion } from '@/types';
+import { buildBookingSearchUrl } from '@/lib/booking';
+import type { HotelSuggestion, PlanRequest } from '@/types';
 
-function hotelLink(h: HotelSuggestion): string {
+function hotelLink(h: HotelSuggestion, planRequest: PlanRequest): string {
   if (h.bookingUrl) return h.bookingUrl;
   if (h.bookingSearchUrl) return h.bookingSearchUrl;
-  const q = encodeURIComponent(h.city);
-  return `https://www.booking.com/searchresults.tr.html?ss=${q}`;
+  return buildBookingSearchUrl(
+    h.city,
+    planRequest.startDate,
+    planRequest.endDate,
+    planRequest.groupDetails,
+  );
 }
 
 type AccommodationPlanProps = {
   suggestions: HotelSuggestion[];
+  planRequest: PlanRequest;
 };
 
-export function AccommodationPlan({ suggestions }: AccommodationPlanProps) {
+export function AccommodationPlan({ suggestions, planRequest }: AccommodationPlanProps) {
   if (!suggestions.length) return null;
 
   return (
@@ -43,11 +49,9 @@ export function AccommodationPlan({ suggestions }: AccommodationPlanProps) {
             }}
           >
             <div style={{ fontSize: 12, fontWeight: 600, color: '#0a0a0f' }}>{h.city}</div>
-            <div style={{ fontSize: 11, color: 'rgba(10,10,15,0.45)' }}>
-              {h.nights} gece{h.category ? ` · ${h.category}` : ''}
-            </div>
+            <div style={{ fontSize: 11, color: 'rgba(10,10,15,0.45)' }}>{h.nights} gece</div>
             <a
-              href={hotelLink(h)}
+              href={hotelLink(h, planRequest)}
               target="_blank"
               rel="noopener noreferrer"
               style={{

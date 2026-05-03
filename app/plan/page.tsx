@@ -6,10 +6,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccommodationPlan } from '@/components/AccommodationPlan';
 import { DayCard } from '@/components/DayCard';
 import PdfExport, { type PdfExpenses } from '@/components/PdfExport';
+import {
+  ReservationModal,
+  normalizeStoredReservationData,
+  type ReservationData,
+} from '@/components/ReservationModal';
 import { assignBookingUrlsToHotelSuggestions } from '@/lib/booking';
 import { mapLegacyDepartureToIata, normalizeDepartureIata } from '@/lib/departure-airports';
 import { buildSkyscannerTasimaUrl } from '@/lib/iata';
-import { mergeBudgetIncludes, type PlanRequest, type StoredTrip, type TripPlan } from '@/types';
+import {
+  mergeBudgetIncludes,
+  mergeGroupDetails,
+  type PlanRequest,
+  type StoredTrip,
+  type TripPlan,
+} from '@/types';
 
 const MapView = dynamic(() => import('@/components/MapView').then((m) => m.MapView), {
   ssr: false,
@@ -22,6 +33,10 @@ const MapView = dynamic(() => import('@/components/MapView').then((m) => m.MapVi
 
 const STORAGE_KEY = 'gezle-trip';
 const PLAN_REQUEST_KEY = 'planRequest';
+
+function reservationsStorageKey(req: PlanRequest): string {
+  return `gezle-reservations:${req.startDate}:${req.endDate}:${encodeURIComponent(req.destination)}`;
+}
 
 const STEPS = [
   { icon: '🗺️', text: 'Konum analiz ediliyor...' },
@@ -147,6 +162,7 @@ function normalizeStoredTrip(raw: unknown): StoredTrip | null {
     startDate: r.startDate,
     endDate: r.endDate,
     people: r.people,
+    groupDetails: mergeGroupDetails(r.people, r.groupDetails),
     tripType: r.tripType,
     budget: r.budget,
     budgetIncludes: mergeBudgetIncludes(r.budgetIncludes),
@@ -182,6 +198,8 @@ export default function PlanPage() {
     diger: '',
   });
   const [showExpenses, setShowExpenses] = useState(false);
+  const [reservationData, setReservationData] = useState<ReservationData>({ hotels: [] });
+  const [showReservations, setShowReservations] = useState(false);
 
   useEffect(() => {
     const check = () => {
@@ -209,7 +227,13 @@ export default function PlanPage() {
       if (pendingRaw) {
         let request: PlanRequest;
         try {
-          request = JSON.parse(pendingRaw) as PlanRequest;
+          const pending = JSON.parse(pendingRaw) as Partial<PlanRequest>;
+          if (!pending.people || !pending.destination) throw new Error('invalid');
+          request = {
+            ...(pending as PlanRequest),
+            groupDetails: mergeGroupDetails(pending.people, pending.groupDetails),
+            budgetIncludes: mergeBudgetIncludes(pending.budgetIncludes),
+          };
         } catch {
           localStorage.removeItem(PLAN_REQUEST_KEY);
           if (!cancelled) {
@@ -277,6 +301,35 @@ export default function PlanPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!data) return;
+    const key = reservationsStorageKey(data.request);
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        setReservationData(normalizeStoredReservationData(JSON.parse(raw)));
+      } else {
+        setReservationData({ hotels: [] });
+      }
+    } catch {
+      setReservationData({ hotels: [] });
+    }
+  }, [data]);
+
+  const persistReservations = useCallback(
+    (next: ReservationData) => {
+      if (!data) return;
+      const key = reservationsStorageKey(data.request);
+      try {
+        localStorage.setItem(key, JSON.stringify(next));
+      } catch {
+        /* ignore quota */
+      }
+      setReservationData(next);
+    },
+    [data],
+  );
+
   const removeActivity = useCallback((id: string) => {
     setRemovedIds((prev) => new Set(prev).add(id));
   }, []);
@@ -305,7 +358,7 @@ export default function PlanPage() {
       destinationAirportIata: data.request.destinationAirportIata,
       startDate: data.request.startDate,
       endDate: data.request.endDate,
-      people: data.request.people,
+      groupDetails: data.request.groupDetails,
     });
   }, [data]);
 
@@ -373,30 +426,25 @@ export default function PlanPage() {
           }}
           className="shrink-0"
         >
-          ⚠️ Mekanları ziyaret öncesi Google Maps'ten kontrol edin.
+          ⚠️ Mekanları ziyaret öncesi Google Maps{"'"}ten kontrol edin.
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-20 md:pb-0">
-          <AccommodationPlan suggestions={hotelSuggestionsForDisplay} />
+          <AccommodationPlan suggestions={hotelSuggestionsForDisplay} planRequest={req} />
 
-          <div className="px-3 pt-1">
+          <div className="mb-3 flex flex-col gap-2 px-3 pt-1 sm:flex-row">
             <button
               type="button"
               onClick={() => setShowExpenses(true)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                background: 'rgba(29,158,117,0.1)',
-                border: '0.5px solid rgba(29,158,117,0.3)',
-                borderRadius: 8,
-                color: '#5dcaa5',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-                textAlign: 'left',
-                marginBottom: 12,
-              }}
+              className="w-full flex-1 rounded-lg border border-[rgba(29,158,117,0.3)] bg-[rgba(29,158,117,0.1)] px-3 py-2 text-left text-[12px] font-medium text-[#5dcaa5] transition-opacity hover:opacity-90"
             >
               💰 Harcama Planlayıcı
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowReservations(true)}
+              className="w-full flex-1 rounded-lg border border-[rgba(99,102,241,0.35)] bg-[rgba(99,102,241,0.12)] px-3 py-2 text-left text-[12px] font-medium text-[#a5b4fc] transition-opacity hover:opacity-90"
+            >
+              🎫 Rezervasyonlarım
             </button>
           </div>
 
@@ -420,7 +468,13 @@ export default function PlanPage() {
                 </div>
               </div>
               <div className="shrink-0">
-                <PdfExport plan={data.plan} request={data.request} expenses={expenses} compact />
+                <PdfExport
+                  plan={data.plan}
+                  request={data.request}
+                  expenses={expenses}
+                  reservationData={reservationData}
+                  compact
+                />
               </div>
             </div>
             {!req.hasTicket ? (
@@ -428,9 +482,9 @@ export default function PlanPage() {
                 href={skyscannerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-3 flex h-10 w-full items-center justify-center rounded-[10px] border border-[#e5e7eb] bg-white text-[14px] font-medium text-[#0a0a0f] transition-colors hover:bg-[#f8f8f7]"
+                className="mt-3 flex h-10 w-full items-center justify-center rounded-[10px] border border-[#1d9e75]/35 bg-gradient-to-b from-[#ecfdf5] to-[#d1fae5] text-[14px] font-semibold text-[#065f46] shadow-[0_1px_2px_rgba(6,95,70,0.08)] transition-all hover:border-[#1d9e75]/55 hover:from-[#d1fae5] hover:to-[#a7f3d0] hover:shadow-[0_2px_8px_rgba(29,158,117,0.18)] active:scale-[0.99]"
               >
-                {req.budgetIncludes.flight ? 'Uçuş Bul (Skyscanner)' : 'Uçuş Bul (Bütçe dışı)'}
+                {req.budgetIncludes.flight ? 'Uçuş Bul (Skyscanner)' : 'Uçuş Bul'}
               </a>
             ) : (
               <p className="mt-3 text-[12px] leading-relaxed text-[#6b7280]">
@@ -686,6 +740,13 @@ export default function PlanPage() {
           </div>
         </div>
       ) : null}
+
+      <ReservationModal
+        open={showReservations}
+        onClose={() => setShowReservations(false)}
+        reservationData={reservationData}
+        onSave={(next) => persistReservations(next)}
+      />
 
       <div
         className="fixed bottom-0 left-0 right-0 z-[100] flex gap-2 border-t border-white/10 bg-[#0a0a0f] px-4 py-2 md:hidden"

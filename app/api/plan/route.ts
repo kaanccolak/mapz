@@ -7,7 +7,13 @@ import {
   getCityCoords,
   getNearbyPlaces,
 } from '@/lib/opentripmap';
-import { mergeBudgetIncludes, type BudgetIncludes, type PlanRequest } from '@/types';
+import {
+  mergeBudgetIncludes,
+  mergeGroupDetails,
+  type BudgetIncludes,
+  type GroupDetails,
+  type PlanRequest,
+} from '@/types';
 
 function isValidPeople(v: unknown): v is PlanRequest['people'] {
   return (
@@ -93,6 +99,7 @@ export async function POST(req: Request) {
       startDate,
       endDate,
       people,
+      groupDetails: mergeGroupDetails(people, body.groupDetails as Partial<GroupDetails> | undefined),
       tripType,
       budget,
       budgetIncludes: mergeBudgetIncludes(body.budgetIncludes as Partial<BudgetIncludes> | undefined),
