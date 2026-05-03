@@ -115,7 +115,7 @@ function LoadingScreen({ destination }: { destination: string }) {
             style={{ width: `${progress}%` }}
           />
         </div>
-        <p className="mt-2 text-center text-[12px] text-white/30">Bu işlem 15-20 saniye sürebilir</p>
+        <p className="mt-2 text-center text-[12px] text-white/30">Plan oluşturulması 1 dakika sürebilir</p>
       </div>
     </div>
   );

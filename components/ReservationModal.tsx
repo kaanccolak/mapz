@@ -85,8 +85,8 @@ export function normalizeStoredReservationData(raw: unknown): ReservationData {
   return { outboundFlight, returnFlight, hotels };
 }
 
-const modalPanelClass =
-  'max-h-[90vh] w-full max-w-[min(calc(100vw-2rem),520px)] overflow-y-auto rounded-2xl border border-white/10 bg-[#111118] p-5 shadow-xl sm:p-6';
+const modalShellClass =
+  'flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111118] shadow-xl';
 
 const labelClass = 'mb-1 block text-[12px] font-medium text-white/50';
 const inputClass =
@@ -277,34 +277,35 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px] sm:p-6"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
       role="presentation"
     >
       <div
-        className={modalPanelClass}
+        className={modalShellClass}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="reservation-modal-title"
       >
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <h2 id="reservation-modal-title" className="text-[15px] font-semibold text-white">
+        <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-[#111118] px-4 py-3 sm:px-6 sm:py-4">
+          <h2 id="reservation-modal-title" className="min-w-0 flex-1 text-[15px] font-semibold text-white">
             🎫 Rezervasyonlarım
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-white/40 transition-colors hover:bg-white/10 hover:text-white/70"
+            className="flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg text-xl leading-none text-white/50 transition-colors hover:bg-white/10 hover:text-white/85"
             aria-label="Kapat"
           >
             ✕
           </button>
         </div>
 
-        <section className="mb-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-4">
+          <section className="mb-6">
           <h3 className="mb-3 text-[13px] font-semibold text-[#5dcaa5]">✈️ Uçuş Bilgileri</h3>
           <div className="flex flex-col gap-3">
             <FlightLegCard
@@ -347,9 +348,9 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
               </div>
             </div>
           </div>
-        </section>
+          </section>
 
-        <section className="mb-2">
+          <section className="mb-2">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-[13px] font-semibold text-[#5dcaa5]">🏨 Otel Bilgileri</h3>
             <button
@@ -446,15 +447,16 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
               ))}
             </div>
           )}
-        </section>
+          </section>
 
-        <button
-          type="button"
-          onClick={handleSave}
-          className="mt-4 w-full rounded-[10px] bg-[#1d9e75] py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-95 active:opacity-90"
-        >
-          Kaydet
-        </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="mt-4 w-full rounded-[10px] bg-[#1d9e75] py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-95 active:opacity-90"
+          >
+            Kaydet
+          </button>
+        </div>
       </div>
     </div>
   );

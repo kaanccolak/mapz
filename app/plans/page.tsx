@@ -96,8 +96,8 @@ export default function PlansPage() {
   }
 
   return (
-    <div className={`min-h-dvh px-4 pb-12 pt-5 sm:px-5 sm:pt-6 ${shellClass}`}>
-      <div className="mx-auto max-w-2xl">
+    <div className={`min-h-dvh px-4 pb-28 pt-5 sm:px-5 sm:pb-32 sm:pt-6 ${shellClass}`}>
+      <div className="mx-auto max-w-2xl pb-8 sm:pb-12">
         <div className="mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-3">
           <div className="min-w-0">
             <h1 className="text-[26px] font-semibold tracking-tight text-white sm:text-[30px]">Planlarım</h1>

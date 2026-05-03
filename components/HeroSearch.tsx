@@ -456,7 +456,7 @@ export function HeroSearch({ onError }: HeroSearchProps) {
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div ref={destWrapRef} className="flex flex-col gap-1">
-          <span className="text-[12px] text-[#5dcaa5]">Nereye?</span>
+          <span className="text-[12px] text-[#5dcaa5]">Nereye gidiyorsunuz?</span>
           <div style={{ position: 'relative' }}>
             <input
               type="text"
@@ -465,7 +465,7 @@ export function HeroSearch({ onError }: HeroSearchProps) {
               onFocus={() => {
                 if (suggestions.length > 0) setShowSuggestions(true);
               }}
-              placeholder="Şehir yazın…"
+              placeholder="Örn: Gürcistan"
               autoComplete="off"
               className="h-11 w-full rounded-[10px] border border-white/10 px-3 text-[15px] text-white placeholder:text-white/35 focus:border-[#1d9e75] focus:outline-none"
               style={{ background: 'rgba(255,255,255,0.06)' }}
@@ -558,7 +558,7 @@ export function HeroSearch({ onError }: HeroSearchProps) {
           ) : null}
         </div>
         <div ref={departureWrapRef} className="flex flex-col gap-1">
-          <span className="text-[12px] text-[#5dcaa5]">Nereden kalkıyorsunuz?</span>
+          <span className="text-[12px] text-[#5dcaa5]">Nereden gidiyorsunuz?</span>
           <div style={{ position: 'relative' }}>
             <input
               type="text"
@@ -639,49 +639,75 @@ export function HeroSearch({ onError }: HeroSearchProps) {
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:col-span-2">
-          <label className="flex min-w-0 w-full flex-col gap-1">
+        <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-3">
+          <label className="flex min-w-0 max-w-full flex-col gap-1 overflow-hidden">
             <span className="text-[12px] text-[#5dcaa5]">Gidiş Tarihi</span>
-            <input
-              type="date"
-              value={startDate}
-              min={minStartDate}
-              placeholder="gg.aa.yyyy"
-              onChange={(e) => {
-                const v = e.target.value;
-                setStartDate(v);
-                if (!v) {
-                  checkLongTripForDates('', endDate);
-                  return;
-                }
-                const nextMinEnd = new Date(new Date(v).getTime() + 86400000).toISOString().split('T')[0];
-                const adjustedEnd = endDate && endDate < nextMinEnd ? nextMinEnd : endDate;
-                if (adjustedEnd !== endDate) {
-                  setEndDate(adjustedEnd);
-                }
-                checkLongTripForDates(v, adjustedEnd);
-              }}
-              onClick={openPickerOnClick}
-              className="h-12 min-h-12 min-w-0 w-full cursor-pointer rounded-[10px] border border-white/15 bg-white/[0.06] px-3 text-[15px] text-white placeholder:text-white/45 focus:border-[#1d9e75] focus:outline-none"
-              style={{ colorScheme: 'dark' }}
-            />
+            <div className="relative isolate min-h-12 w-full min-w-0 max-w-full">
+              {!startDate ? (
+                <span
+                  className="pointer-events-none absolute left-3 top-1/2 z-0 -translate-y-1/2 text-base text-white/45 sm:text-[15px]"
+                  aria-hidden
+                >
+                  gg.aa.yyyy
+                </span>
+              ) : null}
+              <input
+                type="date"
+                value={startDate}
+                min={minStartDate}
+                aria-label="Gidiş tarihi"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setStartDate(v);
+                  if (!v) {
+                    checkLongTripForDates('', endDate);
+                    return;
+                  }
+                  const nextMinEnd = new Date(new Date(v).getTime() + 86400000).toISOString().split('T')[0];
+                  const adjustedEnd = endDate && endDate < nextMinEnd ? nextMinEnd : endDate;
+                  if (adjustedEnd !== endDate) {
+                    setEndDate(adjustedEnd);
+                  }
+                  checkLongTripForDates(v, adjustedEnd);
+                }}
+                onClick={openPickerOnClick}
+                className="relative z-[1] box-border h-12 min-h-12 w-full min-w-0 max-w-full cursor-pointer rounded-[10px] border border-white/15 bg-white/[0.06] px-3 py-0 text-base text-white focus:border-[#1d9e75] focus:outline-none sm:text-[15px]"
+                style={{
+                  colorScheme: 'dark',
+                  WebkitTextFillColor: startDate ? '#ffffff' : 'transparent',
+                }}
+              />
+            </div>
           </label>
-          <label className="flex min-w-0 w-full flex-col gap-1">
+          <label className="flex min-w-0 max-w-full flex-col gap-1 overflow-hidden">
             <span className="text-[12px] text-[#5dcaa5]">Dönüş Tarihi</span>
-            <input
-              type="date"
-              value={endDate}
-              min={minEndDate}
-              placeholder="gg.aa.yyyy"
-              onChange={(e) => {
-                const v = e.target.value;
-                setEndDate(v);
-                checkLongTripForDates(startDate, v);
-              }}
-              onClick={openPickerOnClick}
-              className="h-12 min-h-12 min-w-0 w-full cursor-pointer rounded-[10px] border border-white/15 bg-white/[0.06] px-3 text-[15px] text-white placeholder:text-white/45 focus:border-[#1d9e75] focus:outline-none"
-              style={{ colorScheme: 'dark' }}
-            />
+            <div className="relative isolate min-h-12 w-full min-w-0 max-w-full">
+              {!endDate ? (
+                <span
+                  className="pointer-events-none absolute left-3 top-1/2 z-0 -translate-y-1/2 text-base text-white/45 sm:text-[15px]"
+                  aria-hidden
+                >
+                  gg.aa.yyyy
+                </span>
+              ) : null}
+              <input
+                type="date"
+                value={endDate}
+                min={minEndDate}
+                aria-label="Dönüş tarihi"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setEndDate(v);
+                  checkLongTripForDates(startDate, v);
+                }}
+                onClick={openPickerOnClick}
+                className="relative z-[1] box-border h-12 min-h-12 w-full min-w-0 max-w-full cursor-pointer rounded-[10px] border border-white/15 bg-white/[0.06] px-3 py-0 text-base text-white focus:border-[#1d9e75] focus:outline-none sm:text-[15px]"
+                style={{
+                  colorScheme: 'dark',
+                  WebkitTextFillColor: endDate ? '#ffffff' : 'transparent',
+                }}
+              />
+            </div>
           </label>
         </div>
       </div>
