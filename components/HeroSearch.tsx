@@ -2,8 +2,18 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
+import { AuthModal } from '@/components/AuthModal';
 import { ALLOWED_DEPARTURE_IATA } from '@/lib/departure-airports';
 import { searchDestinations, type Airport, type Destination } from '@/lib/destinations';
+import {
+  getGezleQueryCount,
+  LONG_TRIP_LOGIN_MESSAGE,
+  MAX_TRIAL_PLANS,
+  TRIAL_LIMIT_DESCRIPTION,
+  TRIAL_LIMIT_TITLE,
+} from '@/lib/gezleLimits';
+import { nightsBetween } from '@/lib/planDisplayMeta';
+import { useAuth } from '@/lib/AuthContext';
 import { mergeGroupDetails, type BudgetIncludes, type DepartureIata, type PlanRequest } from '@/types';
 
 const PLAN_REQUEST_KEY = 'planRequest';
@@ -152,6 +162,7 @@ type HeroSearchProps = {
 
 export function HeroSearch({ onError }: HeroSearchProps) {
   const router = useRouter();
+  const { currentUser, loading: authLoading } = useAuth();
   const destWrapRef = useRef<HTMLDivElement>(null);
   const departureWrapRef = useRef<HTMLDivElement>(null);
 
@@ -193,6 +204,10 @@ export function HeroSearch({ onError }: HeroSearchProps) {
   const [hasTicket, setHasTicket] = useState(false);
   const [arrivalTime, setArrivalTime] = useState('');
   const [departureTime, setDepartureTime] = useState('');
+
+  const [trialLimitOpen, setTrialLimitOpen] = useState(false);
+  const [longTripPromptOpen, setLongTripPromptOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const minStartDate = new Date().toISOString().split('T')[0];
   const minEndDate = startDate
@@ -346,6 +361,17 @@ export function HeroSearch({ onError }: HeroSearchProps) {
       return;
     }
 
+    if (getGezleQueryCount() >= MAX_TRIAL_PLANS) {
+      setTrialLimitOpen(true);
+      return;
+    }
+
+    const tripNights = nightsBetween(startDate, endDate);
+    if (!authLoading && !currentUser && tripNights > 4) {
+      setLongTripPromptOpen(true);
+      return;
+    }
+
     const destAir =
       destinationArrivalIata.trim().length === 3 && /^[A-Z]{3}$/i.test(destinationArrivalIata.trim())
         ? destinationArrivalIata.trim().toUpperCase()
@@ -388,7 +414,13 @@ export function HeroSearch({ onError }: HeroSearchProps) {
     router.push('/plan');
   }
 
+  const modalOverlayClass =
+    'fixed inset-0 z-[2000] flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]';
+  const modalPanelClass =
+    'max-h-[90vh] w-full max-w-[min(calc(100vw-2rem),420px)] overflow-y-auto rounded-2xl border border-white/10 bg-[#111118] p-6 shadow-xl';
+
   return (
+    <>
     <form
       onSubmit={handleSubmit}
       className="mx-auto w-full max-w-3xl rounded-[12px] border border-white/10 bg-[rgba(255,255,255,0.06)] p-5 backdrop-blur-sm"
@@ -1038,5 +1070,70 @@ export function HeroSearch({ onError }: HeroSearchProps) {
         </button>
       </div>
     </form>
+
+    {trialLimitOpen ? (
+      <div
+        className={modalOverlayClass}
+        role="presentation"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setTrialLimitOpen(false);
+        }}
+      >
+        <div className={modalPanelClass} role="dialog" aria-modal="true" aria-labelledby="trial-limit-title">
+          <h2 id="trial-limit-title" className="text-[17px] font-semibold text-white">
+            {TRIAL_LIMIT_TITLE}
+          </h2>
+          <p className="mt-3 text-[14px] leading-relaxed text-white/70">{TRIAL_LIMIT_DESCRIPTION}</p>
+          <button
+            type="button"
+            onClick={() => setTrialLimitOpen(false)}
+            className="mt-6 w-full rounded-[10px] bg-[#1d9e75] py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-95"
+          >
+            Tamam
+          </button>
+        </div>
+      </div>
+    ) : null}
+
+    {longTripPromptOpen ? (
+      <div
+        className={modalOverlayClass}
+        role="presentation"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setLongTripPromptOpen(false);
+        }}
+      >
+        <div className={modalPanelClass} role="dialog" aria-modal="true" aria-labelledby="long-trip-title">
+          <h2 id="long-trip-title" className="text-[17px] font-semibold text-white">
+            {LONG_TRIP_LOGIN_MESSAGE}
+          </h2>
+          <p className="mt-3 text-[13px] leading-relaxed text-white/55">
+            4 geceden uzun tatiller için hesabınıza giriş yapmanız gerekir.
+          </p>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => {
+                setLongTripPromptOpen(false);
+                setAuthModalOpen(true);
+              }}
+              className="flex-1 rounded-[10px] bg-[#1d9e75] py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-95"
+            >
+              Giriş yap
+            </button>
+            <button
+              type="button"
+              onClick={() => setLongTripPromptOpen(false)}
+              className="flex-1 rounded-[10px] border border-white/15 bg-white/[0.06] py-2.5 text-[14px] font-medium text-white/80 transition hover:bg-white/[0.1]"
+            >
+              Kapat
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+
+    <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+    </>
   );
 }

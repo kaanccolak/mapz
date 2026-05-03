@@ -10,6 +10,15 @@ import { assignBookingUrlsToHotelSuggestions } from '@/lib/booking';
 import { mapLegacyDepartureToIata, normalizeDepartureIata } from '@/lib/departure-airports';
 import { useAuth } from '@/lib/AuthContext';
 import { buildSkyscannerTasimaUrl } from '@/lib/iata';
+import {
+  getGezleQueryCount,
+  incrementGezleQueryCountAfterSuccess,
+  LONG_TRIP_LOGIN_MESSAGE,
+  MAX_TRIAL_PLANS,
+  TRIAL_LIMIT_DESCRIPTION,
+  TRIAL_LIMIT_TITLE,
+} from '@/lib/gezleLimits';
+import { nightsBetween } from '@/lib/planDisplayMeta';
 import { getPlan, savePlan } from '@/lib/planService';
 import {
   mergeBudgetIncludes,
@@ -271,13 +280,18 @@ export default function PlanPage() {
 
   useEffect(() => {
     if (hasFetched.current) return;
-    hasFetched.current = true;
 
     let cancelled = false;
 
     async function bootstrap() {
-      setBootstrapError(null);
       const pendingRaw = localStorage.getItem(PLAN_REQUEST_KEY);
+      if (pendingRaw && authLoading) {
+        if (!cancelled) setMounted(true);
+        return;
+      }
+
+      hasFetched.current = true;
+      setBootstrapError(null);
 
       if (pendingRaw) {
         let request: PlanRequest;
@@ -294,6 +308,28 @@ export default function PlanPage() {
           if (!cancelled) {
             setData(null);
             setBootstrapError('Kayıtlı istek okunamadı.');
+            setMounted(true);
+          }
+          return;
+        }
+
+        if (getGezleQueryCount() >= MAX_TRIAL_PLANS) {
+          localStorage.removeItem(PLAN_REQUEST_KEY);
+          if (!cancelled) {
+            setData(null);
+            setBootstrapError(`${TRIAL_LIMIT_TITLE}\n\n${TRIAL_LIMIT_DESCRIPTION}`);
+            setMounted(true);
+          }
+          return;
+        }
+
+        if (!authLoading && !currentUser && nightsBetween(request.startDate, request.endDate) > 4) {
+          localStorage.removeItem(PLAN_REQUEST_KEY);
+          if (!cancelled) {
+            setData(null);
+            setBootstrapError(
+              `${LONG_TRIP_LOGIN_MESSAGE}\n\n4 geceden uzun planlar için ana sayfada giriş yapmanız gerekir.`,
+            );
             setMounted(true);
           }
           return;
@@ -320,6 +356,7 @@ export default function PlanPage() {
           const stored: StoredTrip = { plan, request };
           localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
           localStorage.removeItem(PLAN_REQUEST_KEY);
+          incrementGezleQueryCountAfterSuccess();
           setData(stored);
         } catch (e) {
           if (!cancelled) {
@@ -354,7 +391,7 @@ export default function PlanPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading, currentUser]);
 
   useEffect(() => {
     if (!data) return;
@@ -432,7 +469,10 @@ export default function PlanPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-white px-4">
         {bootstrapError ? (
-          <p className="max-w-md text-center text-[15px] text-red-600" role="alert">
+          <p
+            className="max-w-md whitespace-pre-line text-center text-[15px] text-red-600"
+            role="alert"
+          >
             {bootstrapError}
           </p>
         ) : (

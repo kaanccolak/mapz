@@ -250,7 +250,7 @@ export default function PdfExport({
           disabled={loading}
           style={btnSecondary}
         >
-          {loading ? (compact ? '⏳…' : '⏳ PDF…') : '📥 PDF'}
+          {loading ? (compact ? '⏳…' : '⏳ PDF…') : '📥 PDF Olarak İndir'}
         </button>
       </div>
 
