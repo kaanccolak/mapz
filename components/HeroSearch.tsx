@@ -1,7 +1,14 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { AuthModal } from '@/components/AuthModal';
 import { ALLOWED_DEPARTURE_IATA } from '@/lib/departure-airports';
 import { searchDestinations, type Airport, type Destination } from '@/lib/destinations';
@@ -141,6 +148,9 @@ const normalize = (str: string) =>
 
 const PICKER_INPUT_STYLE: CSSProperties = {
   width: '100%',
+  minWidth: 0,
+  minHeight: 44,
+  height: 44,
   padding: '12px 16px',
   background: 'rgba(255,255,255,0.06)',
   border: '0.5px solid rgba(255,255,255,0.15)',
@@ -149,7 +159,6 @@ const PICKER_INPUT_STYLE: CSSProperties = {
   fontSize: '14px',
   colorScheme: 'dark',
   cursor: 'pointer',
-  WebkitAppearance: 'none',
 };
 
 function openPickerOnClick(e: ReactMouseEvent<HTMLInputElement>) {
@@ -213,6 +222,26 @@ export function HeroSearch({ onError }: HeroSearchProps) {
   const minEndDate = startDate
     ? new Date(new Date(startDate).getTime() + 86400000).toISOString().split('T')[0]
     : new Date().toISOString().split('T')[0];
+
+  const checkLongTripForDates = useCallback(
+    (sd: string, ed: string) => {
+      if (authLoading) return;
+      if (currentUser) {
+        setLongTripPromptOpen(false);
+        return;
+      }
+      if (!sd?.trim() || !ed?.trim()) {
+        setLongTripPromptOpen(false);
+        return;
+      }
+      setLongTripPromptOpen(nightsBetween(sd, ed) > 4);
+    },
+    [authLoading, currentUser],
+  );
+
+  useEffect(() => {
+    checkLongTripForDates(startDate, endDate);
+  }, [startDate, endDate, authLoading, currentUser, checkLongTripForDates]);
 
   const handleBudgetChange = (value: string) => {
     const numbers = value.replace(/[^0-9]/g, '');
@@ -610,34 +639,48 @@ export function HeroSearch({ onError }: HeroSearchProps) {
             ) : null}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:col-span-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-[12px] text-[#5dcaa5]">Başlangıç</span>
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:col-span-2">
+          <label className="flex min-w-0 w-full flex-col gap-1">
+            <span className="text-[12px] text-[#5dcaa5]">Gidiş Tarihi</span>
             <input
               type="date"
               value={startDate}
               min={minStartDate}
+              placeholder="gg.aa.yyyy"
               onChange={(e) => {
                 const v = e.target.value;
                 setStartDate(v);
-                if (v) {
-                  const nextMinEnd = new Date(new Date(v).getTime() + 86400000).toISOString().split('T')[0];
-                  setEndDate((prev) => (prev && prev < nextMinEnd ? nextMinEnd : prev));
+                if (!v) {
+                  checkLongTripForDates('', endDate);
+                  return;
                 }
+                const nextMinEnd = new Date(new Date(v).getTime() + 86400000).toISOString().split('T')[0];
+                const adjustedEnd = endDate && endDate < nextMinEnd ? nextMinEnd : endDate;
+                if (adjustedEnd !== endDate) {
+                  setEndDate(adjustedEnd);
+                }
+                checkLongTripForDates(v, adjustedEnd);
               }}
               onClick={openPickerOnClick}
-              style={PICKER_INPUT_STYLE}
+              className="h-12 min-h-12 min-w-0 w-full cursor-pointer rounded-[10px] border border-white/15 bg-white/[0.06] px-3 text-[15px] text-white placeholder:text-white/45 focus:border-[#1d9e75] focus:outline-none"
+              style={{ colorScheme: 'dark' }}
             />
           </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[12px] text-[#5dcaa5]">Bitiş</span>
+          <label className="flex min-w-0 w-full flex-col gap-1">
+            <span className="text-[12px] text-[#5dcaa5]">Dönüş Tarihi</span>
             <input
               type="date"
               value={endDate}
               min={minEndDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              placeholder="gg.aa.yyyy"
+              onChange={(e) => {
+                const v = e.target.value;
+                setEndDate(v);
+                checkLongTripForDates(startDate, v);
+              }}
               onClick={openPickerOnClick}
-              style={PICKER_INPUT_STYLE}
+              className="h-12 min-h-12 min-w-0 w-full cursor-pointer rounded-[10px] border border-white/15 bg-white/[0.06] px-3 text-[15px] text-white placeholder:text-white/45 focus:border-[#1d9e75] focus:outline-none"
+              style={{ colorScheme: 'dark' }}
             />
           </label>
         </div>
@@ -1113,10 +1156,7 @@ export function HeroSearch({ onError }: HeroSearchProps) {
           <div className="mt-6 flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
-              onClick={() => {
-                setLongTripPromptOpen(false);
-                setAuthModalOpen(true);
-              }}
+              onClick={() => setAuthModalOpen(true)}
               className="flex-1 rounded-[10px] bg-[#1d9e75] py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-95"
             >
               Giriş yap
