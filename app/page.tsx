@@ -8,7 +8,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white font-sans text-[#0a0a0f]">
-      <section className="relative overflow-hidden bg-[#0a0a0f] px-4 pb-24 pt-16 sm:pt-24">
+      <section className="relative overflow-hidden bg-[#0a0a0f] px-4 pb-24 pt-8 sm:pt-14">
         <div
           className="pointer-events-none absolute -left-32 top-0 h-[420px] w-[420px] rounded-full bg-[#1d9e75]/20 blur-[120px]"
           aria-hidden

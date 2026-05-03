@@ -28,6 +28,7 @@ type ActivityItemProps = {
   onSelect: (index: number) => void;
   onRemove: (id: string) => void;
   onRestore: (id: string) => void;
+  readOnly?: boolean;
 };
 
 export function ActivityItem({
@@ -41,6 +42,7 @@ export function ActivityItem({
   onSelect,
   onRemove,
   onRestore,
+  readOnly = false,
 }: ActivityItemProps) {
   const badgeBg = typeBadgeColors[activity.type] ?? '#888780';
   const showTime =
@@ -96,33 +98,35 @@ export function ActivityItem({
           </span>
         ) : null}
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        {!removed ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(activityId);
-            }}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] opacity-0 transition-opacity hover:bg-[#f8f8f7] hover:text-[#0a0a0f] group-hover:opacity-100 focus:opacity-100"
-            aria-label="Aktiviteyi kaldır"
-          >
-            ×
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRestore(activityId);
-            }}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#1d9e75] hover:bg-[#f8f8f7]"
-            aria-label="Geri yükle"
-          >
-            ↩
-          </button>
-        )}
-      </div>
+      {!readOnly ? (
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {!removed ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(activityId);
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-[#6b7280] opacity-0 transition-opacity hover:bg-[#f8f8f7] hover:text-[#0a0a0f] group-hover:opacity-100 focus:opacity-100"
+              aria-label="Aktiviteyi kaldır"
+            >
+              ×
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRestore(activityId);
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-[#1d9e75] hover:bg-[#f8f8f7]"
+              aria-label="Geri yükle"
+            >
+              ↩
+            </button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -27,8 +27,14 @@ interface PdfExportProps {
   request: PlanRequest;
   expenses: PdfExpenses;
   reservationData?: ReservationData;
+  /** Paylaşım linki için (Firestore kaydı sonrası). Yoksa "Planı Paylaş" devre dışı. */
+  shareId?: string | null;
+  /** Örn. https://mapz-kappa.vercel.app — sonda / olmadan */
+  shareBaseUrl?: string;
   /** Dar sidebar için küçük buton */
   compact?: boolean;
+  /** true: paylaşım butonu gösterilmez (salt PDF) */
+  hideShare?: boolean;
 }
 
 /** İndirilen PDF dosya adı: örn. "Karadağ Planı" (başlığın ilk kelimesi veya destinasyon). */
@@ -104,15 +110,35 @@ function pdfFlightLegBlock(leg: FlightReservationLeg, heading: string) {
   );
 }
 
+const DEFAULT_SHARE_BASE = 'https://mapz-kappa.vercel.app';
+
 export default function PdfExport({
   plan,
   request,
   expenses,
   reservationData,
+  shareId,
+  shareBaseUrl,
   compact,
+  hideShare = false,
 }: PdfExportProps) {
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  const baseShare = (process.env.NEXT_PUBLIC_APP_URL || shareBaseUrl || DEFAULT_SHARE_BASE).replace(/\/$/, '');
+
+  const copyShareLink = async () => {
+    if (!shareId?.trim()) return;
+    const url = `${baseShare}/plan/${encodeURIComponent(shareId.trim())}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.prompt('Bu linki kopyalayın:', url);
+    }
+  };
 
   const exportPdf = async () => {
     if (!contentRef.current) return;
@@ -156,34 +182,77 @@ export default function PdfExport({
     ? `${budgetNum.toLocaleString('tr-TR')} ₺`
     : `${request.budget} ₺`;
 
+  const btnPrimary = {
+    padding: compact ? '9px 14px' : '12px 22px',
+    background: copied ? '#15805d' : '#1d9e75',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 10,
+    fontSize: compact ? 12 : 14,
+    fontWeight: 600,
+    letterSpacing: compact ? '0.01em' : '0.02em',
+    cursor: shareId?.trim() ? 'pointer' : 'not-allowed',
+    display: 'flex' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: compact ? 7 : 8,
+    whiteSpace: 'nowrap' as const,
+    textAlign: 'center' as const,
+    lineHeight: 1.25,
+    minHeight: compact ? 40 : 44,
+    opacity: shareId?.trim() ? 1 : 0.45,
+  };
+
+  const showShare = !hideShare;
+
+  const btnSecondary = {
+    padding: compact ? '6px 12px' : '8px 16px',
+    background: 'transparent',
+    color: '#1d9e75',
+    border: '1px solid rgba(29,158,117,0.45)',
+    borderRadius: 10,
+    fontSize: compact ? 11 : 13,
+    fontWeight: 600,
+    cursor: loading ? 'not-allowed' : 'pointer',
+    display: 'flex' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    whiteSpace: 'nowrap' as const,
+    minHeight: compact ? 32 : 36,
+    opacity: loading ? 0.6 : 1,
+  };
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => void exportPdf()}
-        disabled={loading}
+      <div
         style={{
-          padding: compact ? '9px 14px' : '12px 22px',
-          background: loading ? 'rgba(255,255,255,0.1)' : '#1d9e75',
-          color: '#fff',
-          border: 'none',
-          borderRadius: compact ? 10 : 10,
-          fontSize: compact ? 12 : 14,
-          fontWeight: 600,
-          letterSpacing: compact ? '0.01em' : '0.02em',
-          cursor: loading ? 'not-allowed' : 'pointer',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: compact ? 7 : 8,
-          whiteSpace: 'nowrap',
-          textAlign: 'center',
-          lineHeight: 1.25,
-          minHeight: compact ? 40 : 44,
+          flexDirection: compact ? 'column' : 'row',
+          alignItems: compact ? 'stretch' : 'center',
+          gap: compact ? 6 : 10,
         }}
       >
-        {loading ? (compact ? '⏳…' : '⏳ Plan hazırlanıyor...') : '📄 Planı Paylaş'}
-      </button>
+        {showShare ? (
+          <button
+            type="button"
+            onClick={() => void copyShareLink()}
+            disabled={!shareId?.trim()}
+            title={!shareId?.trim() ? 'Önce planı kaydedin' : 'Paylaşım linkini kopyala'}
+            style={btnPrimary}
+          >
+            {copied ? 'Kopyalandı ✓' : '📄 Planı Paylaş'}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => void exportPdf()}
+          disabled={loading}
+          style={btnSecondary}
+        >
+          {loading ? (compact ? '⏳…' : '⏳ PDF…') : '📥 PDF'}
+        </button>
+      </div>
 
       <div
         ref={contentRef}

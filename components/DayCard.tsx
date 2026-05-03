@@ -13,6 +13,8 @@ type DayCardProps = {
   onRestore: (id: string) => void;
   selectedActivityIndex: number | null;
   onActivitySelect: (index: number) => void;
+  /** Paylaşım görünümü: kaldır/geri yükle gizlenir */
+  readOnly?: boolean;
 };
 
 function activityId(dayNumber: number, index: number) {
@@ -29,6 +31,7 @@ export function DayCard({
   onRestore,
   selectedActivityIndex,
   onActivitySelect,
+  readOnly = false,
 }: DayCardProps) {
   const suppressTimes = !hasTicket && (dayIndex === 0 || dayIndex === totalDays - 1);
 
@@ -49,6 +52,7 @@ export function DayCard({
             onSelect={onActivitySelect}
             onRemove={onRemove}
             onRestore={onRestore}
+            readOnly={readOnly}
           />
         );
       })}
