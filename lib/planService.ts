@@ -55,6 +55,14 @@ function randomShareId(): string {
   return Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * Firestore nested undefined kabul etmez. JSON ile undefined alanlar atılır;
+ * dizideki undefined öğeler null olur.
+ */
+function stripUndefinedForFirestore<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export async function savePlan(
   userId: string,
   input: {
@@ -80,6 +88,13 @@ export async function savePlan(
     input.plan.tripTitle?.trim() ||
     `${input.request.destination} · ${input.request.startDate} – ${input.request.endDate}`;
 
+  const planData = stripUndefinedForFirestore(input.plan);
+  const requestSnapshot = stripUndefinedForFirestore(input.request);
+  const reservationData =
+    input.reservationData === null ? null : stripUndefinedForFirestore(input.reservationData);
+  const expenseData =
+    input.expenseData === null ? null : stripUndefinedForFirestore(input.expenseData);
+
   const planDoc = {
     userId,
     title,
@@ -88,10 +103,10 @@ export async function savePlan(
     endDate: input.request.endDate,
     groupType: input.request.people,
     budget: input.request.budget,
-    planData: input.plan,
-    requestSnapshot: input.request,
-    reservationData: input.reservationData,
-    expenseData: input.expenseData,
+    planData,
+    requestSnapshot,
+    reservationData,
+    expenseData,
     shareId,
     updatedAt: serverTimestamp(),
     ...(input.existingPlanId ? {} : { createdAt: serverTimestamp() }),
@@ -99,6 +114,7 @@ export async function savePlan(
 
   const sharedRef = doc(db, 'sharedPlans', shareId);
   const sharedPayload = {
+    userId,
     planId,
     title,
     destination: input.request.destination,
@@ -106,10 +122,10 @@ export async function savePlan(
     endDate: input.request.endDate,
     groupType: input.request.people,
     budget: input.request.budget,
-    planData: input.plan,
-    requestSnapshot: input.request,
-    reservationData: input.reservationData,
-    expenseData: input.expenseData,
+    planData,
+    requestSnapshot,
+    reservationData,
+    expenseData,
     updatedAt: serverTimestamp(),
     ...(input.existingPlanId ? {} : { createdAt: serverTimestamp() }),
   };

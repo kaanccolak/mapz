@@ -176,6 +176,7 @@ export default function PlanPage() {
   const [savedFirestorePlanId, setSavedFirestorePlanId] = useState<string | null>(null);
   const [savedShareId, setSavedShareId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveErrorDetail, setSaveErrorDetail] = useState<string | null>(null);
   const [planAuthOpen, setPlanAuthOpen] = useState(false);
   const loadedFirestoreSavedId = useRef<string | null>(null);
 
@@ -208,6 +209,7 @@ export default function PlanPage() {
         setSavedFirestorePlanId(urlSavedPlanId);
         setSavedShareId(p.shareId || null);
         setSaveStatus('saved');
+        setSaveErrorDetail(null);
         router.replace('/plan', { scroll: false });
       } catch {
         if (!cancelled) {
@@ -225,6 +227,7 @@ export default function PlanPage() {
   const handleSaveToCloud = useCallback(async () => {
     if (!currentUser || !data) return;
     setSaveStatus('saving');
+    setSaveErrorDetail(null);
     try {
       const { planId, shareId } = await savePlan(currentUser.uid, {
         plan: data.plan,
@@ -237,7 +240,18 @@ export default function PlanPage() {
       setSavedFirestorePlanId(planId);
       setSavedShareId(shareId);
       setSaveStatus('saved');
-    } catch {
+      setSaveErrorDetail(null);
+    } catch (err) {
+      console.error('[savePlan] Firestore kaydı başarısız:', err);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : err && typeof err === 'object' && 'message' in err
+            ? String((err as { message?: unknown }).message ?? '')
+            : 'Bilinmeyen hata';
+      const code =
+        err && typeof err === 'object' && 'code' in err ? String((err as { code?: unknown }).code ?? '') : '';
+      setSaveErrorDetail(code ? `${code}: ${msg}` : msg || 'Kayıt başarısız');
       setSaveStatus('error');
     }
   }, [currentUser, data, reservationData, expenses, savedFirestorePlanId, savedShareId]);
@@ -495,26 +509,33 @@ export default function PlanPage() {
                 Plan kaydı için .env.local içinde Firebase anahtarları gerekli.
               </span>
             ) : currentUser ? (
-              <button
-                type="button"
-                onClick={() => void handleSaveToCloud()}
-                disabled={saveStatus === 'saving' || saveStatus === 'saved'}
-                className={`rounded-lg px-3 py-2 text-[12px] font-semibold transition ${
-                  saveStatus === 'saved'
-                    ? 'cursor-default border border-[#1d9e75]/40 bg-[#ecfdf5] text-[#065f46]'
-                    : saveStatus === 'error'
-                      ? 'border border-red-300 bg-red-50 text-red-800 hover:bg-red-100'
-                      : 'border border-[#1d9e75]/35 bg-[#1d9e75] text-white hover:bg-[#178f68] disabled:opacity-60'
-                }`}
-              >
-                {saveStatus === 'saved'
-                  ? 'Kaydedildi ✓'
-                  : saveStatus === 'saving'
-                    ? 'Kaydediliyor…'
-                    : saveStatus === 'error'
-                      ? 'Tekrar dene'
-                      : 'Planı Kaydet'}
-              </button>
+              <div className="flex min-w-0 w-full max-w-full flex-col gap-1">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveToCloud()}
+                  disabled={saveStatus === 'saving' || saveStatus === 'saved'}
+                  className={`w-fit rounded-lg px-3 py-2 text-[12px] font-semibold transition ${
+                    saveStatus === 'saved'
+                      ? 'cursor-default border border-[#1d9e75]/40 bg-[#ecfdf5] text-[#065f46]'
+                      : saveStatus === 'error'
+                        ? 'border border-red-300 bg-red-50 text-red-800 hover:bg-red-100'
+                        : 'border border-[#1d9e75]/35 bg-[#1d9e75] text-white hover:bg-[#178f68] disabled:opacity-60'
+                  }`}
+                >
+                  {saveStatus === 'saved'
+                    ? 'Kaydedildi ✓'
+                    : saveStatus === 'saving'
+                      ? 'Kaydediliyor…'
+                      : saveStatus === 'error'
+                        ? 'Tekrar dene'
+                        : 'Planı Kaydet'}
+                </button>
+                {saveStatus === 'error' && saveErrorDetail ? (
+                  <p className="max-w-full break-words text-[11px] leading-snug text-red-600" role="alert">
+                    {saveErrorDetail}
+                  </p>
+                ) : null}
+              </div>
             ) : (
               <button
                 type="button"
