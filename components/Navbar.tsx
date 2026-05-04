@@ -21,7 +21,7 @@ export function Navbar() {
             href="/"
             className="text-[17px] font-semibold tracking-tight text-white transition hover:text-[#5dcaa5]"
           >
-            Gezle
+            Gidiyom
           </Link>
 
           <nav className="flex items-center gap-2 sm:gap-3">

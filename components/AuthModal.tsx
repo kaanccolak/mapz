@@ -95,7 +95,7 @@ export function AuthModal({ open, onClose, initialTab = 'login' }: Props) {
       >
         <div className="mb-5 flex items-center justify-between gap-3">
           <h2 id="auth-modal-title" className="text-[16px] font-semibold text-white">
-            Gezle hesabı
+            Gidiyom hesabı
           </h2>
           <button
             type="button"

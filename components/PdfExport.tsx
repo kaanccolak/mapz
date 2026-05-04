@@ -44,13 +44,13 @@ function buildPdfDownloadBaseName(plan: TripPlan, request: PlanRequest): string 
     const first = title.split(/\s+/)[0]?.trim();
     if (first) return `${first} Planı`;
   }
-  const dest = request.destination.trim().split(/[,;]/)[0]?.trim() || 'Gezle';
+  const dest = request.destination.trim().split(/[,;]/)[0]?.trim() || 'Gidiyom';
   return `${dest} Planı`;
 }
 
 function sanitizePdfFileName(name: string): string {
   const cleaned = name.replace(/[<>:"/\\|?*]+/g, '').replace(/\s+/g, ' ').trim();
-  return cleaned.replace(/^\.+|\.+$/g, '') || 'Gezle Plani';
+  return cleaned.replace(/^\.+|\.+$/g, '') || 'Gidiyom Planı';
 }
 
 function flightLegHasPdfContent(f?: FlightReservationLeg): boolean {

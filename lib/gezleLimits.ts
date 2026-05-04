@@ -6,11 +6,11 @@ export const MAX_TRIAL_PLANS = 2;
 export const TRIAL_LIMIT_TITLE = 'Deneme limitine ulaştınız 🎯';
 
 export const TRIAL_LIMIT_DESCRIPTION =
-  'Bu cihazdan 2 plan oluşturdunuz. Gezle şu an deneme aşamasında olduğu için cihaz başına 2 plan limiti uygulanıyor.';
+  'Bu cihazdan 2 plan oluşturdunuz.\nGidiyom şu an deneme aşamasında olduğu için\ncihaz başına 2 plan limiti uygulanıyor.';
 
 export const LONG_TRIP_LOGIN_MESSAGE = 'Giriş yaparak daha uzun planlar oluşturabilirsiniz 🗺️';
 
-export function getGezleQueryCount(): number {
+export function getGidiyomQueryCount(): number {
   if (typeof window === 'undefined') return 0;
   try {
     const raw = localStorage.getItem(GEZLE_QUERY_COUNT_KEY);
@@ -23,9 +23,9 @@ export function getGezleQueryCount(): number {
 }
 
 /** Yalnızca API planı başarıyla döndükten sonra çağrılmalı. */
-export function incrementGezleQueryCountAfterSuccess(): void {
+export function incrementGidiyomQueryCountAfterSuccess(): void {
   try {
-    const n = getGezleQueryCount();
+    const n = getGidiyomQueryCount();
     localStorage.setItem(GEZLE_QUERY_COUNT_KEY, String(n + 1));
   } catch {
     /* quota / private mode */

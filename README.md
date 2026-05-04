@@ -1,4 +1,4 @@
-# Gezle — AI Destekli Seyahat Planlayıcı
+# Gidiyom — AI Destekli Seyahat Planlayıcı
 
 Türk kullanıcılar için yapay zeka destekli seyahat planlama uygulaması. Destinasyon, tarih, bütçe ve tatil tipini gir — Claude AI saniyeler içinde gün gün dolu bir plan oluşturur.
 

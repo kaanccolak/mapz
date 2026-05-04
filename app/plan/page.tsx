@@ -11,8 +11,8 @@ import { mapLegacyDepartureToIata, normalizeDepartureIata } from '@/lib/departur
 import { useAuth } from '@/lib/AuthContext';
 import { buildSkyscannerTasimaUrl } from '@/lib/iata';
 import {
-  getGezleQueryCount,
-  incrementGezleQueryCountAfterSuccess,
+  getGidiyomQueryCount,
+  incrementGidiyomQueryCountAfterSuccess,
   LONG_TRIP_LOGIN_MESSAGE,
   MAX_TRIAL_PLANS,
   TRIAL_LIMIT_DESCRIPTION,
@@ -313,7 +313,7 @@ export default function PlanPage() {
           return;
         }
 
-        if (getGezleQueryCount() >= MAX_TRIAL_PLANS) {
+        if (getGidiyomQueryCount() >= MAX_TRIAL_PLANS) {
           localStorage.removeItem(PLAN_REQUEST_KEY);
           if (!cancelled) {
             setData(null);
@@ -356,7 +356,7 @@ export default function PlanPage() {
           const stored: StoredTrip = { plan, request };
           localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
           localStorage.removeItem(PLAN_REQUEST_KEY);
-          incrementGezleQueryCountAfterSuccess();
+          incrementGidiyomQueryCountAfterSuccess();
           setData(stored);
         } catch (e) {
           if (!cancelled) {

@@ -1,4 +1,4 @@
-# Gezle — AI Destekli Seyahat Planlayıcı
+# Gidiyom — AI Destekli Seyahat Planlayıcı
 
 ## Teknoloji Stack
 - Next.js 14 (App Router) + TypeScript + Tailwind CSS
@@ -25,6 +25,13 @@
 - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
 - `GOOGLE_MAPS_API_KEY` (server-side)
 - `OPENTRIPMAP_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+- `NEXT_PUBLIC_APP_URL`
 
 ## Tamamlanan Özellikler
 - Nereye? alanında ülke/şehir autocomplete (Türkçe normalize)
@@ -45,6 +52,20 @@
 - Harcama Planlayıcı modal (uçak, konaklama, araç, yeme-içme, alışveriş, diğer)
 - PDF'te Tahmini Harcama Özeti
 - Mekan uyarısı bandı
+- Firebase Authentication (Google + Email/Password girişi)
+- Firestore ile plan kaydetme
+- Planlarım sayfası (`app/plans/page.tsx`)
+- Paylaşılabilir plan linki (`app/plan/[shareId]/page.tsx`) — salt okunur
+- Navbar (`components/Navbar.tsx`) — Gidiyom logo, Planlarım, kullanıcı adı, Çıkış
+- AuthModal (`components/AuthModal.tsx`) — giriş/kayıt modal
+- Rezervasyon bilgileri modal (`components/ReservationModal.tsx`) — gidiş/dönüş uçuş + otel bilgileri, PDF'e yansıyor
+- Sorgu limiti — localStorage ile cihaz başına max 2 plan (`lib/gezleLimits.ts`)
+- Giriş yapmamış kullanıcılar max 4 gece plan yapabilir
+- Grup detayları — Aile/Arkadaş grubu için kişi sayısı, çocuk yaşı, oda sayısı
+- Booking.com linki kişi/oda/çocuk sayısına göre dinamik oluşturuluyor
+- Skyscanner linki kişi/çocuk sayısına göre dinamik oluşturuluyor
+- "Gidiş Tarihi" / "Dönüş Tarihi" label güncellendi
+- Ana sayfa sadece form — extra section'lar kaldırıldı
 
 ## Teknik Notlar
 - React Strict Mode KAPALI (next.config.ts)
@@ -56,6 +77,9 @@
 - Google Maps zoom: useMap + panTo, key prop yok
 
 ## Yapılacaklar
-- Vercel deploy
-- Kullanıcı girişi + plan kaydetme
+- ~~Vercel deploy~~ ✅
+- ~~Kullanıcı girişi + plan kaydetme~~ ✅
 - Streaming ile süre optimizasyonu
+- Affiliate link entegrasyonu (Booking + Skyscanner)
+- Para modeli (freemium)
+- Mobil uygulama (Capacitor)

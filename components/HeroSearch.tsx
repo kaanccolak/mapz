@@ -6,7 +6,7 @@ import { AuthModal } from '@/components/AuthModal';
 import { ALLOWED_DEPARTURE_IATA } from '@/lib/departure-airports';
 import { searchDestinations, type Airport, type Destination } from '@/lib/destinations';
 import {
-  getGezleQueryCount,
+  getGidiyomQueryCount,
   LONG_TRIP_LOGIN_MESSAGE,
   MAX_TRIAL_PLANS,
   TRIAL_LIMIT_DESCRIPTION,
@@ -378,7 +378,7 @@ export function HeroSearch({ onError }: HeroSearchProps) {
       }
     }
 
-    if (getGezleQueryCount() >= MAX_TRIAL_PLANS) {
+    if (getGidiyomQueryCount() >= MAX_TRIAL_PLANS) {
       setTrialLimitOpen(true);
       return;
     }
@@ -1148,7 +1148,9 @@ export function HeroSearch({ onError }: HeroSearchProps) {
           <h2 id="trial-limit-title" className="text-[17px] font-semibold text-white">
             {TRIAL_LIMIT_TITLE}
           </h2>
-          <p className="mt-3 text-[14px] leading-relaxed text-white/70">{TRIAL_LIMIT_DESCRIPTION}</p>
+          <p className="mt-3 whitespace-pre-line text-[14px] leading-relaxed text-white/70">
+            {TRIAL_LIMIT_DESCRIPTION}
+          </p>
           <button
             type="button"
             onClick={() => setTrialLimitOpen(false)}
