@@ -390,7 +390,7 @@ export default function PdfExport({
               >
                 {day.activities.map((a: Activity, ai: number) => (
                   <div
-                    key={`${day.dayNumber}-${ai}-${a.name}`}
+                    key={a.id ?? `${day.dayNumber}-${ai}-${a.name}`}
                     style={{
                       display: 'flex',
                       gap: 8,

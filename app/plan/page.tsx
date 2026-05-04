@@ -18,11 +18,14 @@ import {
   TRIAL_LIMIT_DESCRIPTION,
   TRIAL_LIMIT_TITLE,
 } from '@/lib/gezleLimits';
+import { stableActivityId } from '@/lib/activityIds';
 import { nightsBetween } from '@/lib/planDisplayMeta';
 import { getPlan, savePlan } from '@/lib/planService';
+import { sortActivitiesByTime } from '@/lib/sortActivitiesByTime';
 import {
   mergeBudgetIncludes,
   mergeGroupDetails,
+  type Activity,
   type PlanRequest,
   type StoredTrip,
   type TripPlan,
@@ -187,6 +190,7 @@ export default function PlanPage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveErrorDetail, setSaveErrorDetail] = useState<string | null>(null);
   const [planAuthOpen, setPlanAuthOpen] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const loadedFirestoreSavedId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -219,6 +223,7 @@ export default function PlanPage() {
         setSavedShareId(p.shareId || null);
         setSaveStatus('saved');
         setSaveErrorDetail(null);
+        setHasUnsavedChanges(false);
         router.replace('/plan', { scroll: false });
       } catch {
         if (!cancelled) {
@@ -238,8 +243,18 @@ export default function PlanPage() {
     setSaveStatus('saving');
     setSaveErrorDetail(null);
     try {
+      const cleanedPlanData: TripPlan = {
+        ...data.plan,
+        days: data.plan.days.map((day) => ({
+          ...day,
+          activities: day.activities.filter(
+            (activity, index) => !removedIds.has(stableActivityId(day.dayNumber, index, activity)),
+          ),
+        })),
+      };
+
       const { planId, shareId } = await savePlan(currentUser.uid, {
-        plan: data.plan,
+        plan: cleanedPlanData,
         request: data.request,
         reservationData,
         expenseData: expenses,
@@ -250,6 +265,9 @@ export default function PlanPage() {
       setSavedShareId(shareId);
       setSaveStatus('saved');
       setSaveErrorDetail(null);
+      setHasUnsavedChanges(false);
+      setData((prev) => (prev ? { ...prev, plan: cleanedPlanData } : prev));
+      setRemovedIds(new Set());
     } catch (err) {
       console.error('[savePlan] Firestore kaydı başarısız:', err);
       const msg =
@@ -263,7 +281,7 @@ export default function PlanPage() {
       setSaveErrorDetail(code ? `${code}: ${msg}` : msg || 'Kayıt başarısız');
       setSaveStatus('error');
     }
-  }, [currentUser, data, reservationData, expenses, savedFirestorePlanId, savedShareId]);
+  }, [currentUser, data, removedIds, reservationData, expenses, savedFirestorePlanId, savedShareId]);
 
   useEffect(() => {
     const check = () => {
@@ -418,12 +436,14 @@ export default function PlanPage() {
         /* ignore quota */
       }
       setReservationData(next);
+      setHasUnsavedChanges(true);
     },
     [data],
   );
 
   const removeActivity = useCallback((id: string) => {
     setRemovedIds((prev) => new Set(prev).add(id));
+    setHasUnsavedChanges(true);
   }, []);
 
   const restoreActivity = useCallback((id: string) => {
@@ -432,6 +452,25 @@ export default function PlanPage() {
       next.delete(id);
       return next;
     });
+    setHasUnsavedChanges(true);
+  }, []);
+
+  const addManualActivity = useCallback((dayIndex: number, activity: Activity) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      const days = prev.plan.days.map((d, i) =>
+        i === dayIndex ? { ...d, activities: [...d.activities] } : { ...d },
+      );
+      const day = days[dayIndex];
+      if (!day) return prev;
+      const ensured = day.activities.map((a, idx) =>
+        a.id ? a : { ...a, id: `legacy-${day.dayNumber}-${idx}` },
+      );
+      const merged = sortActivitiesByTime([...ensured, activity]);
+      days[dayIndex] = { ...day, activities: merged };
+      return { ...prev, plan: { ...prev.plan, days } };
+    });
+    setHasUnsavedChanges(true);
   }, []);
 
   useEffect(() => {
@@ -518,6 +557,8 @@ export default function PlanPage() {
         setShowExpenses={setShowExpenses}
         showReservations={showReservations}
         setShowReservations={setShowReservations}
+        onExpensesModalSaved={() => setHasUnsavedChanges(true)}
+        onManualActivityAdded={addManualActivity}
         savedPlanLoginBanner={
           urlSavedPlanId && !authLoading && !currentUser ? (
             <div className="mx-3 mb-2 rounded-lg border border-amber-200/90 bg-amber-50 px-3 py-2.5 text-center text-[12px] leading-snug text-amber-950">
@@ -553,22 +594,31 @@ export default function PlanPage() {
                 <button
                   type="button"
                   onClick={() => void handleSaveToCloud()}
-                  disabled={saveStatus === 'saving' || saveStatus === 'saved'}
+                  disabled={
+                    saveStatus === 'saving' ||
+                    (!!savedFirestorePlanId && !hasUnsavedChanges && saveStatus !== 'error')
+                  }
                   className={`w-fit rounded-lg px-3 py-2 text-[12px] font-semibold transition ${
-                    saveStatus === 'saved'
-                      ? 'cursor-default border border-[#1d9e75]/40 bg-[#ecfdf5] text-[#065f46]'
-                      : saveStatus === 'error'
-                        ? 'border border-red-300 bg-red-50 text-red-800 hover:bg-red-100'
-                        : 'border border-[#1d9e75]/35 bg-[#1d9e75] text-white hover:bg-[#178f68] disabled:opacity-60'
+                    saveStatus === 'error'
+                      ? 'border border-red-300 bg-red-50 text-red-800 hover:bg-red-100'
+                      : savedFirestorePlanId && !hasUnsavedChanges
+                        ? 'cursor-default border border-[#1d9e75]/40 bg-[#ecfdf5] text-[#065f46]'
+                        : hasUnsavedChanges
+                          ? 'border-2 border-amber-500 bg-amber-50 text-amber-950 hover:bg-amber-100/90'
+                          : 'border border-[#1d9e75]/35 bg-[#1d9e75] text-white hover:bg-[#178f68] disabled:opacity-60'
                   }`}
                 >
-                  {saveStatus === 'saved'
-                    ? 'Kaydedildi ✓'
-                    : saveStatus === 'saving'
-                      ? 'Kaydediliyor…'
-                      : saveStatus === 'error'
-                        ? 'Tekrar dene'
-                        : 'Planı Kaydet'}
+                  {saveStatus === 'saving'
+                    ? 'Kaydediliyor…'
+                    : saveStatus === 'error'
+                      ? 'Tekrar dene'
+                      : savedFirestorePlanId && !hasUnsavedChanges
+                        ? 'Kaydedildi ✓'
+                        : hasUnsavedChanges
+                          ? savedFirestorePlanId
+                            ? 'Değişiklikleri Kaydet'
+                            : 'Planı Kaydet'
+                          : 'Planı Kaydet'}
                 </button>
                 {saveStatus === 'error' && saveErrorDetail ? (
                   <p className="max-w-full break-words text-[11px] leading-snug text-red-600" role="alert">

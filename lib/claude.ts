@@ -455,7 +455,7 @@ function parseReplacementsJson(text: string): Array<{ dayNumber: number; closedN
         time: typeof act.time === 'string' ? act.time : '',
         name: act.name as string,
         description: typeof act.description === 'string' ? act.description : '',
-        type: (['gezi', 'yemek', 'kafe', 'aktif'].includes(String(act.type))
+        type: (['gezi', 'yemek', 'kafe', 'aktif', 'custom'].includes(String(act.type))
           ? act.type
           : 'gezi') as ActivityType,
         duration: typeof act.duration === 'string' ? act.duration : '',

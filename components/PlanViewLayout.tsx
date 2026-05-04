@@ -3,11 +3,12 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { AccommodationPlan } from '@/components/AccommodationPlan';
+import { AddManualActivityModal } from '@/components/AddManualActivityModal';
 import { DayCard } from '@/components/DayCard';
 import type { PdfExpenses } from '@/components/PdfExport';
 import { ReservationModal, type ReservationData } from '@/components/ReservationModal';
 import { formatTripDates, nightsBetween, peopleLabels } from '@/lib/planDisplayMeta';
-import type { HotelSuggestion, StoredTrip } from '@/types';
+import type { Activity, HotelSuggestion, StoredTrip } from '@/types';
 
 const MapView = dynamic(() => import('@/components/MapView').then((m) => m.MapView), {
   ssr: false,
@@ -51,6 +52,10 @@ export type PlanViewLayoutProps = {
   pdfExportSlot: ReactNode;
   /** Planı Kaydet satırı; yoksa gösterilmez */
   saveActionRow?: ReactNode;
+  /** Harcama Planlayıcı modalında "Kaydet" tıklanınca (bulut senkronu için işaretleme) */
+  onExpensesModalSaved?: () => void;
+  /** Manuel eklenen aktivite (plan state üst bileşende güncellenir) */
+  onManualActivityAdded?: (dayIndex: number, activity: Activity) => void;
 };
 
 export function PlanViewLayout({
@@ -81,6 +86,8 @@ export function PlanViewLayout({
   modeBanner = null,
   pdfExportSlot,
   saveActionRow = null,
+  onExpensesModalSaved,
+  onManualActivityAdded,
 }: PlanViewLayoutProps) {
   const req = data.request;
   const nights = nightsBetween(req.startDate, req.endDate);
@@ -90,6 +97,7 @@ export function PlanViewLayout({
   const activeDay = data.plan.days[activeDayIndex];
   const [mapDetailPanelOpen, setMapDetailPanelOpen] = useState(false);
   const [mobileListFocusNonce, setMobileListFocusNonce] = useState(0);
+  const [manualAddOpen, setManualAddOpen] = useState(false);
 
   const handleActivitySelect = useCallback(
     (index: number) => {
@@ -235,6 +243,9 @@ export function PlanViewLayout({
                   onActivitySelect={handleActivitySelect}
                   showMapOnMobileHint={isNarrowViewport}
                   readOnly={readOnly}
+                  onOpenManualAdd={
+                    !readOnly && onManualActivityAdded ? () => setManualAddOpen(true) : undefined
+                  }
                 />
               </div>
             ) : null}
@@ -453,7 +464,10 @@ export function PlanViewLayout({
 
             <button
               type="button"
-              onClick={() => setShowExpenses(false)}
+              onClick={() => {
+                onExpensesModalSaved?.();
+                setShowExpenses(false);
+              }}
               style={{
                 width: '100%',
                 marginTop: 16,
@@ -479,6 +493,18 @@ export function PlanViewLayout({
         reservationData={reservationData}
         onSave={(next) => persistReservations(next)}
       />
+
+      {onManualActivityAdded ? (
+        <AddManualActivityModal
+          open={manualAddOpen}
+          onClose={() => setManualAddOpen(false)}
+          contextLabel={
+            activeDay ? `${activeDay.date} · ${activeDay.title}` : undefined
+          }
+          tripDestination={req.destination}
+          onSubmit={(activity) => onManualActivityAdded(activeDayIndex, activity)}
+        />
+      ) : null}
 
       <div
         className="fixed bottom-0 left-0 right-0 z-[100] flex gap-2 border-t border-white/10 bg-[#0a0a0f] px-4 py-2 md:hidden"

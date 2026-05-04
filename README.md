@@ -1,68 +1,103 @@
 # Gidiyom — Yapay Zeka Destekli Seyahat Planlayıcı
 
-Türkçe arayüzlü, yapay zeka destekli seyahat planlama uygulaması. Destinasyon, tarih, bütçe ve tatil tercihlerini girerek dakikalar içinde gün gün plan üretin; haritada görün, PDF olarak paylaşın.
+> Nereye gittiğini söyle, gerisini biz halledelim.
 
 ## Özellikler
 
-- **Arama ve form:** Ülke/şehir autocomplete (Türkçe normalize), aramalı kalkış havalimanı seçimi, tarih ve saat seçicileri
-- **Bütçe:** Formatlı bütçe alanı, bütçeye dahil kalemler (uçak, araç, konaklama, yeme-içme, aktiviteler), araç kiraladım anahtarı, uçak bileti var/yok akışı
-- **Plan görünümü:** Masaüstünde sol sidebar + sağ harita; mobilde Plan/Harita sekmeli alt çubuk
-- **Harita:** Google Maps; Mindtrip tarzı fotoğraflı pinler, mekan adı ve kategori ikonu etiketi; pin anchor koordinatla hizalı
-- **Places:** Kapalı kalıcı mekan (`CLOSED_PERMANENTLY`) doğrulaması; pin detay paneli — foto carousel (3), puan, yorum sayısı, fiyat, adres, açık/kapalı, örnek yorumlar, editorial summary; server proxy ile CORS’suz istek; in-memory önbellek
-- **Aktiviteler:** Tipe göre renkli pinler; silme ve geri yükleme
-- **Konaklama:** Kompakt kartlar, kişi/oda/çocuğa göre dinamik Booking.com linki
-- **Uçuş:** Kişi/çocuğa göre dinamik Skyscanner linki
-- **Rezervasyon:** Gidiş/dönüş uçuş ve otel bilgileri modalı; PDF’e yansır
-- **PDF:** Türkçe, gün gün bölümler; tahmini harcama özeti (jsPDF + html2canvas)
-- **Harcama planlayıcı:** Uçak, konaklama, araç, yeme-içme, alışveriş, diğer
-- **Uyarılar:** Mekan uyarısı bandı
-- **Kimlik ve veri:** Firebase (Google + e-posta/şifre), Firestore ile plan kaydetme; Planlarım sayfası
-- **Paylaşım:** Salt okunur paylaşılabilir plan linki
-- **Navbar:** Logo, Planlarım, kullanıcı, çıkış; giriş/kayıt modalı
-- **Limitler:** Cihaz başına plan sorgu limiti (localStorage); girişsiz kullanıcıda maksimum gece sınırı
-- **Grup:** Aile/arkadaş için kişi sayısı, çocuk yaşı, oda sayısı
-- **Diğer:** Yükleme animasyonu, SEO meta etiketleri, ortak plan layout bileşeni; ana sayfa odaklı form deneyimi
+### Akıllı Plan Oluşturma
+
+- Claude AI ile saniyeler içinde kişiselleştirilmiş günlük plan
+- Bütçeye göre mekan önerileri
+- Araç kiralama modunda çevre şehirlere günübirlik geziler
+- Aile/çift/grup/yalnız seçeneğine göre kişiselleştirilmiş plan
+- Uçuş saatlerine göre otomatik plan düzenleme
+- Places API ile kapalı mekan doğrulaması
+
+### Harita & Mekan Deneyimi
+
+- Google Maps entegrasyonu — fotoğraflı Mindtrip tarzı pinler
+- Pin'e tıklayınca mekan detayı: fotoğraf carousel, puan, yorumlar, açıklama, fiyat seviyesi, açık/kapalı durumu
+- Aktivite silme/geri yükleme
+- Manuel mekan ekleme (Google Maps linki ile)
+- Manuel aktivite ekleme (serbest metin)
+
+### Kaydet & Paylaş
+
+- Firebase Authentication (Google + Email/Password)
+- Planları kaydet, istediğin zaman geri dön
+- Paylaşılabilir link — herkes görüntüleyebilir
+- PDF olarak indir (Türkçe destekli)
+
+### Rezervasyon & Harcama
+
+- Rezervasyon bilgileri (uçuş PNR, otel rezervasyon no) PDF'e yansır
+- Harcama planlayıcı — bütçeyle karşılaştırma
+- Booking.com — kişi/çocuk/oda sayısına göre dinamik link
+- Skyscanner — kişi/çocuk sayısına göre dinamik link
 
 ## Teknoloji Stack
 
-- **Next.js 14** (App Router), **TypeScript**, **Tailwind CSS**
-- **Anthropic Claude API** — plan üretimi
-- **Google Maps JavaScript API** + **Places API** (sunucu proxy route’ları ile)
-- **OpenTripMap API** — mekan keşfi
-- **Firebase Authentication** + **Firestore**
-- **jsPDF** + **html2canvas** — PDF dışa aktarım
-- **Vercel** — dağıtım
+- Next.js 14 (App Router) + TypeScript + Tailwind CSS
+- Anthropic Claude API (claude-sonnet)
+- Google Maps JavaScript API + Places API
+- OpenTripMap API
+- Firebase Authentication + Firestore
+- Vercel deployment
 
 ## Kurulum
 
-1. Repoyu klonlayın.
-2. Bağımlılıkları yükleyin: `npm install`
-3. Proje kökünde `.env.local` oluşturup aşağıdaki değişkenleri tanımlayın.
-4. Geliştirme sunucusu: `npm run dev` — uygulama [http://localhost:3000](http://localhost:3000) adresinde açılır.
+1. Repoyu klonla:
 
-Geliştirici notları ve dosya haritası için `CLAUDE.md` dosyasına bakın.
+```bash
+git clone https://github.com/kaanccolak/mapz.git
+cd mapz
+```
+
+2. Bağımlılıkları yükle:
+
+```bash
+npm install
+```
+
+3. Environment variables oluştur:
+
+```bash
+cp .env.example .env.local
+```
+
+4. Geliştirme sunucusunu başlat:
+
+```bash
+npm run dev
+```
 
 ## Environment Variables
 
-| Değişken | Açıklama |
-|----------|----------|
-| `ANTHROPIC_API_KEY` | Claude API anahtarı (plan üretimi). |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | İstemci tarafı harita ve Places proxy çağrıları. |
-| `GOOGLE_MAPS_API_KEY` | Sunucu tarafı (Places doğrulama, proxy). |
-| `OPENTRIPMAP_API_KEY` | OpenTripMap erişimi. |
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase web yapılandırması. |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Auth domain. |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase proje kimliği. |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Storage bucket (varsa). |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | FCM gönderen kimliği. |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase uygulama kimliği. |
-| `NEXT_PUBLIC_APP_URL` | Üretim taban URL’si (paylaşım linkleri vb.). |
+```
+ANTHROPIC_API_KEY=
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
+GOOGLE_MAPS_API_KEY=
+OPENTRIPMAP_API_KEY=
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+NEXT_PUBLIC_APP_URL=
+```
 
-**Google Cloud:** Projede **Maps JavaScript API**, **Places API** ve **Geocoding API** etkin olmalıdır.
+## Google Cloud Console
+
+Şu API'lerin aktif olması gerekiyor:
+
+- Maps JavaScript API
+- Places API
+- Geocoding API
 
 ## Canlı Demo
 
-[https://mapz-kappa.vercel.app](https://mapz-kappa.vercel.app)
+https://mapz-kappa.vercel.app
 
 ## Lisans
 

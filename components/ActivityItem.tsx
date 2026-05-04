@@ -7,6 +7,7 @@ const typeLabels: Record<ActivityType, string> = {
   yemek: 'Yemek',
   kafe: 'Kafe',
   aktif: 'Aktif',
+  custom: 'Senin ekleme',
 };
 
 const typeBadgeColors: Record<ActivityType, string> = {
@@ -14,6 +15,7 @@ const typeBadgeColors: Record<ActivityType, string> = {
   yemek: '#D85A30',
   kafe: '#1D9E75',
   aktif: '#7F77DD',
+  custom: '#a855f7',
 };
 
 type ActivityItemProps = {
@@ -52,6 +54,9 @@ export function ActivityItem({
     !suppressTimes && activity.time != null && String(activity.time).trim() !== '';
   const typeLabel = typeLabels[activity.type];
   const descText = activity.description?.trim() ?? '';
+  const showTypeBadge =
+    Boolean(typeLabel) &&
+    !(activity.type === 'custom' && activity.isManual === true && !descText);
 
   return (
     <div
@@ -95,7 +100,7 @@ export function ActivityItem({
             {descText}
           </p>
         ) : null}
-        {typeLabel ? (
+        {showTypeBadge ? (
           <span className="mt-1 inline-block rounded-full bg-[#f8f8f7] px-2 py-0.5 text-[11px] leading-none text-[#0a0a0f]">
             {typeLabel}
           </span>

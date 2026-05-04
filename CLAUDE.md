@@ -34,6 +34,7 @@
 - `app/api/places/nearby/route.ts` — Places API proxy (nearby search)
 - `app/api/places/details/route.ts` — Places API proxy (place details)
 - `app/api/places/photo/route.ts` — Places API proxy (fotoğraf)
+- `app/api/places/extract-from-maps-url/route.ts` — Google Maps URL'inden mekan bilgisi çıkarma
 
 ## Environment Variables (.env.local)
 - `ANTHROPIC_API_KEY`
@@ -93,6 +94,15 @@
 - Pin detay paneli — fotoğraf carousel (3 foto), puan, yorum sayısı, fiyat seviyesi, adres, açık/kapalı durumu, 2 yorum, editorial summary
 - Places API in-memory cache — aynı mekana tekrar istek atılmaz
 - Pin anchor düzeltmesi — koordinat offset sorunu giderildi
+- Manuel aktivite ekleme — Google Maps linki yapıştırarak mekan ekleme (maps.app.goo.gl kısa link desteği dahil)
+- Manuel aktivite ekleme — serbest metin ile aktivite ekleme (koordinatsız)
+- Eklenen aktiviteler haritada sarı border'lı pin olarak gösteriliyor
+- Aktivite eklenince saate göre otomatik sıralama
+- "Değişiklikleri Kaydet" butonu — plan değişince aktif oluyor
+- Firestore update — yeni kayıt değil mevcut plan güncelleniyor
+- Mobil: aktivite kartına tıklayınca harita sekmesine geç + o konuma zoom
+- Mobil: harita sekmesinde aktif gün badge'i
+- Mobil: fotoğraf carousel'inde swipe desteği
 
 ## Teknik Notlar
 - React Strict Mode KAPALI (next.config.ts)
@@ -105,13 +115,21 @@
 - Claude prompt: mekan tekrarı yok, kahvaltı her gün, köklü mekanlar tercih et
 - Türkçe normalize: toLocaleLowerCase('tr-TR')
 - Google Maps zoom: useMap + panTo, key prop yok
+- maps.app.goo.gl kısa linkleri: redirect takip → slug + koordinat çıkar → Text Search → place_id → Details API
+- Hex format place_id (0x...) kullanılmıyor; Text Search ile ChIJ formatı alınıyor
+- Aktivite silme: deletedActivityIds benzeri filtre Firestore'a göndermeden uygulanır (`removedIds` + `stableActivityId`)
 
 ## Yapılacaklar
 - ~~Vercel deploy~~ ✅
 - ~~Kullanıcı girişi + plan kaydetme~~ ✅
 - ~~Paylaşılabilir plan linki~~ ✅
 - ~~SEO meta tags~~ ✅
+- ~~Places API kapalı mekan doğrulaması~~ ✅
+- ~~Fotoğraflı harita pinleri~~ ✅
+- ~~Pin detay paneli~~ ✅
+- ~~Manuel aktivite ekleme~~ ✅
 - Domain alımı (gidiyom.net)
 - Streaming ile süre optimizasyonu
 - Para modeli (freemium)
 - Mobil uygulama (Capacitor)
+- Firestore güvenlik kuralları sıkılaştırma

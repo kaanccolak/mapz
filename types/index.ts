@@ -56,9 +56,11 @@ export type DepartureIata =
   | 'VAS'
   | 'YEI';
 
-export type ActivityType = 'gezi' | 'yemek' | 'kafe' | 'aktif';
+export type ActivityType = 'gezi' | 'yemek' | 'kafe' | 'aktif' | 'custom';
 
 export interface Activity {
+  /** Silme/sıralama için sabit kimlik (manuel veya migrate edilmiş) */
+  id?: string;
   time: string;
   name: string;
   description: string;
@@ -67,6 +69,8 @@ export interface Activity {
   /** Varsa haritada pin; yoksa yalnızca gün merkezi (mapQuery) ile yaklaşık konum */
   lat?: number;
   lng?: number;
+  /** Kullanıcı tarafından plan sayfasından eklendi */
+  isManual?: boolean;
 }
 
 export interface Day {

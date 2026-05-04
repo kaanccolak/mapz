@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type TouchEvent } from 'react';
 
 export type PlacePanelMarker = {
   name: string;
@@ -108,6 +108,7 @@ const arrowBtnClass =
 function PhotoCarousel({ photos, roundedTopClass, onClose, resetKey }: PhotoCarouselProps) {
   const [active, setActive] = useState(0);
   const n = photos.length;
+  const touchStartXRef = useRef(0);
 
   useEffect(() => {
     setActive(0);
@@ -117,6 +118,25 @@ function PhotoCarousel({ photos, roundedTopClass, onClose, resetKey }: PhotoCaro
     if (n <= 0) return;
     setActive(Math.min(n - 1, Math.max(0, index)));
   }, [n]);
+
+  const onCarouselTouchStart = useCallback((e: TouchEvent) => {
+    touchStartXRef.current = e.touches[0]?.clientX ?? 0;
+  }, []);
+
+  const onCarouselTouchEnd = useCallback(
+    (e: TouchEvent) => {
+      if (n <= 1) return;
+      const endX = e.changedTouches[0]?.clientX;
+      if (endX == null) return;
+      const diff = touchStartXRef.current - endX;
+      if (diff > 50) {
+        setActive((prev) => Math.min(n - 1, prev + 1));
+      } else if (diff < -50) {
+        setActive((prev) => Math.max(0, prev - 1));
+      }
+    },
+    [n],
+  );
 
   const pct = n > 0 ? (active / n) * 100 : 0;
 
@@ -135,7 +155,11 @@ function PhotoCarousel({ photos, roundedTopClass, onClose, resetKey }: PhotoCaro
 
       {n > 0 ? (
         <>
-          <div className="relative h-full w-full overflow-hidden">
+          <div
+            className="relative h-full w-full touch-manipulation overflow-hidden"
+            onTouchStart={onCarouselTouchStart}
+            onTouchEnd={onCarouselTouchEnd}
+          >
             <div
               className="flex h-full transition-transform duration-300 ease-out"
               style={{

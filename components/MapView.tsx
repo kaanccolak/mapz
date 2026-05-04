@@ -8,6 +8,7 @@ import {
   useMapsLibrary,
 } from '@vis.gl/react-google-maps';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { stableActivityId } from '@/lib/activityIds';
 import { PlaceDetailPanel } from '@/components/PlaceDetailPanel';
 import type { Activity, ActivityType } from '@/types';
 
@@ -22,6 +23,7 @@ type MapMarkerEntry = {
   time: string;
   duration: string;
   description: string;
+  isManual?: boolean;
 };
 
 export type MapViewProps = {
@@ -81,6 +83,8 @@ function getCategoryDisplay(type: ActivityType, name: string): { emoji: string; 
       return { emoji: '🏛️', bg: '#2563eb' };
     case 'aktif':
       return { emoji: '🌿', bg: '#15803d' };
+    case 'custom':
+      return { emoji: '✨', bg: '#a855f7' };
     default:
       return { emoji: '📍', bg: '#6b7280' };
   }
@@ -169,7 +173,7 @@ type MindtripPinProps = {
 function MindtripPinGlyph({ entry, photoRef, isSelected }: MindtripPinProps) {
   const size = isSelected ? 52 : 40;
   const borderW = isSelected ? 3 : 2;
-  const borderColor = isSelected ? '#1d9e75' : '#ffffff';
+  const borderColor = isSelected ? '#1d9e75' : entry.isManual ? '#eab308' : '#ffffff';
   const shadow = isSelected ? '0 4px 18px rgba(0,0,0,0.45)' : '0 2px 8px rgba(0,0,0,0.3)';
   const { emoji, bg } = getCategoryDisplay(entry.type, entry.name);
   const hasPhoto = typeof photoRef === 'string' && photoRef.length > 0;
@@ -233,10 +237,6 @@ function MindtripPinGlyph({ entry, photoRef, isSelected }: MindtripPinProps) {
 
 const DEFAULT_MAP_ID = 'DEMO_MAP_ID';
 
-function activityRowId(dayNumber: number, index: number) {
-  return `${dayNumber}-${index}`;
-}
-
 function buildMarkerEntries(
   activities: Activity[],
   dayNumber: number,
@@ -244,7 +244,7 @@ function buildMarkerEntries(
 ): MapMarkerEntry[] {
   const out: MapMarkerEntry[] = [];
   activities.forEach((a, i) => {
-    if (removedIds.has(activityRowId(dayNumber, i))) return;
+    if (removedIds.has(stableActivityId(dayNumber, i, a))) return;
     const lat = a.lat;
     const lng = a.lng;
     if (typeof lat !== 'number' || typeof lng !== 'number' || Number.isNaN(lat) || Number.isNaN(lng)) {
@@ -261,6 +261,7 @@ function buildMarkerEntries(
       time: a.time,
       duration: a.duration,
       description: typeof a.description === 'string' ? a.description : '',
+      isManual: a.isManual === true,
     });
   });
   return out;
@@ -275,7 +276,7 @@ function hasFocusableCoords(
   if (selectedIndex === null || selectedIndex === undefined) return false;
   const activity = activities[selectedIndex];
   if (!activity) return false;
-  if (removedIds.has(activityRowId(dayNumber, selectedIndex))) return false;
+  if (removedIds.has(stableActivityId(dayNumber, selectedIndex, activity))) return false;
   const lat = activity.lat;
   const lng = activity.lng;
   return typeof lat === 'number' && typeof lng === 'number' && !Number.isNaN(lat) && !Number.isNaN(lng);
@@ -340,7 +341,7 @@ function MapPanToFirstActivity({
     if (hasCenterProp) return;
 
     const firstValid = activities.find((a, i) => {
-      if (removedIds.has(activityRowId(dayNumber, i))) return false;
+      if (removedIds.has(stableActivityId(dayNumber, i, a))) return false;
       const la = a.lat;
       const lo = a.lng;
       return typeof la === 'number' && typeof lo === 'number' && !Number.isNaN(la) && !Number.isNaN(lo);
@@ -415,7 +416,7 @@ function SelectionFollow({
       return;
     }
 
-    const rowId = activityRowId(dayNumber, selectedIndex);
+    const rowId = stableActivityId(dayNumber, selectedIndex, activity);
     if (removedIds.has(rowId)) {
       onPopupReady(null);
       if (isMobile && mobileListFocusNonce > lastProcessedListNonceRef.current) {
