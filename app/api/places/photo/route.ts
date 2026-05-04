@@ -10,7 +10,11 @@ export async function GET(req: NextRequest) {
     return new NextResponse(null, { status: 500 });
   }
 
-  const ref = (req.nextUrl.searchParams.get('ref') ?? '').trim();
+  const ref = (
+    req.nextUrl.searchParams.get('ref') ??
+    req.nextUrl.searchParams.get('reference') ??
+    ''
+  ).trim();
   if (!ref) {
     return new NextResponse(null, { status: 400 });
   }

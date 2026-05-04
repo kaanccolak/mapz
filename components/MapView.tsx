@@ -1,6 +1,12 @@
 'use client';
 
-import { AdvancedMarker, APIProvider, Map, useMap, useMapsLibrary } from '@vis.gl/react-google-maps';
+import {
+  AdvancedMarker,
+  APIProvider,
+  Map as GoogleMap,
+  useMap,
+  useMapsLibrary,
+} from '@vis.gl/react-google-maps';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PlaceDetailPanel } from '@/components/PlaceDetailPanel';
 import type { Activity, ActivityType } from '@/types';
@@ -37,31 +43,186 @@ export type MapViewProps = {
   centerLng?: number;
 };
 
-const PIN_COLORS: Record<string, { background: string; borderColor: string; glyphColor: string }> = {
-  gezi: { background: '#185FA5', borderColor: '#0C447C', glyphColor: '#ffffff' },
-  yemek: { background: '#D85A30', borderColor: '#993C1D', glyphColor: '#ffffff' },
-  kafe: { background: '#1D9E75', borderColor: '#0F6E56', glyphColor: '#ffffff' },
-  aktif: { background: '#7F77DD', borderColor: '#534AB7', glyphColor: '#ffffff' },
-  default: { background: '#888780', borderColor: '#5F5E5A', glyphColor: '#ffffff' },
+/** Koordinat + isim ile nearby foto önbelleği (photo_reference veya null) */
+const pinPhotoCache = new Map<string, string | null>();
+
+function pinPhotoCacheKey(lat: number, lng: number, name: string): string {
+  return `${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}::${name.trim().toLowerCase().replace(/\s+/g, ' ')}`;
+}
+
+function getCategoryDisplay(type: ActivityType, name: string): { emoji: string; bg: string } {
+  const n = name.toLocaleLowerCase('tr-TR');
+  if (
+    /transfer|shuttle|havaalanı|havalimani|airport|taksi|taxi|otobüs|otobus|ulaşım|ulasim|metro|gidiş otobüs|dönüş otobüs/.test(
+      n,
+    )
+  ) {
+    return { emoji: '🚗', bg: '#475569' };
+  }
+  if (/otel|hotel|pansiyon|konaklama|hostel|resort|apart|bnb|airbnb/.test(n)) {
+    return { emoji: '🏨', bg: '#0d9488' };
+  }
+  if (/plaj|beach|sahil|kumsal/.test(n)) return { emoji: '🏖️', bg: '#eab308' };
+  if (/bar|pub|gece|kulüp|club|bistro/.test(n)) return { emoji: '🍸', bg: '#1e3a5f' };
+  if (/alışveriş|alisveris|avm|mağaza|magaza|çarşı|carsi|outlet/.test(n)) return { emoji: '🛍️', bg: '#7c3aed' };
+  if (/park|doğa|doga|orman|milli park|yürüyüş|yuruyus|şelale|selale/.test(n)) return { emoji: '🌿', bg: '#16a34a' };
+  if (/müze|muze|galeri|kale|anıt|anit/.test(n)) return { emoji: '🏛️', bg: '#2563eb' };
+
+  switch (type) {
+    case 'yemek':
+      return { emoji: '🍽️', bg: '#dc2626' };
+    case 'kafe':
+      return { emoji: '☕', bg: '#ea580c' };
+    case 'gezi':
+      return { emoji: '🏛️', bg: '#2563eb' };
+    case 'aktif':
+      return { emoji: '🌿', bg: '#15803d' };
+    default:
+      return { emoji: '📍', bg: '#6b7280' };
+  }
+}
+
+function truncatePinLabelName(name: string, maxLen = 18): string {
+  const t = name.trim();
+  if (t.length <= maxLen) return t;
+  return `${t.slice(0, maxLen)}...`;
+}
+
+type PhotoLoadState = string | null | undefined;
+
+function useMarkerPinPhotos(entries: MapMarkerEntry[]) {
+  const [photoByActivity, setPhotoByActivity] = useState<Record<number, PhotoLoadState>>({});
+  const entriesKey = useMemo(
+    () =>
+      entries
+        .map((e) => `${e.activityIndex}:${e.lat.toFixed(4)}:${e.lng.toFixed(4)}:${e.name}`)
+        .join('|'),
+    [entries],
+  );
+
+  useEffect(() => {
+    const ac = new AbortController();
+    let alive = true;
+
+    setPhotoByActivity({});
+
+    const run = async () => {
+      const BATCH = 3;
+      for (let i = 0; i < entries.length; i += BATCH) {
+        if (!alive || ac.signal.aborted) break;
+        const batch = entries.slice(i, i + BATCH);
+        await Promise.all(
+          batch.map(async (entry) => {
+            const cacheKey = pinPhotoCacheKey(entry.lat, entry.lng, entry.name);
+            if (pinPhotoCache.has(cacheKey)) {
+              const cached = pinPhotoCache.get(cacheKey)!;
+              if (alive && !ac.signal.aborted) {
+                setPhotoByActivity((prev) => ({ ...prev, [entry.activityIndex]: cached }));
+              }
+              return;
+            }
+            try {
+              const res = await fetch(
+                `/api/places/nearby?lat=${encodeURIComponent(String(entry.lat))}&lng=${encodeURIComponent(String(entry.lng))}&name=${encodeURIComponent(entry.name)}`,
+                { signal: ac.signal },
+              );
+              const j = (await res.json()) as {
+                results?: { photos?: { photo_reference?: string }[] }[];
+              };
+              const ref = j.results?.[0]?.photos?.[0]?.photo_reference ?? null;
+              pinPhotoCache.set(cacheKey, ref);
+              if (alive && !ac.signal.aborted) {
+                setPhotoByActivity((prev) => ({ ...prev, [entry.activityIndex]: ref }));
+              }
+            } catch {
+              if (ac.signal.aborted) return;
+              pinPhotoCache.set(cacheKey, null);
+              if (alive) {
+                setPhotoByActivity((prev) => ({ ...prev, [entry.activityIndex]: null }));
+              }
+            }
+          }),
+        );
+      }
+    };
+
+    void run();
+    return () => {
+      alive = false;
+      ac.abort();
+    };
+  }, [entriesKey]);
+
+  return photoByActivity;
+}
+
+type MindtripPinProps = {
+  entry: MapMarkerEntry;
+  photoRef: PhotoLoadState;
+  isSelected: boolean;
 };
 
-const getPinConfig = (type: string) => {
-  return PIN_COLORS[type] ?? PIN_COLORS['default'];
-};
+function MindtripPinGlyph({ entry, photoRef, isSelected }: MindtripPinProps) {
+  const size = isSelected ? 52 : 40;
+  const borderW = isSelected ? 3 : 2;
+  const borderColor = isSelected ? '#1d9e75' : '#ffffff';
+  const shadow = isSelected ? '0 4px 18px rgba(0,0,0,0.45)' : '0 2px 8px rgba(0,0,0,0.3)';
+  const { emoji, bg } = getCategoryDisplay(entry.type, entry.name);
+  const hasPhoto = typeof photoRef === 'string' && photoRef.length > 0;
+  const labelTitle = truncatePinLabelName(entry.name);
 
-function NumberedPinGlyph({ number, type }: { number: number; type: string }) {
-  const { background } = getPinConfig(type);
+  /** Harita anchor = yuvarlak pin merkezi; etiket sağa uzanır (genişlik offset’e dahil değil). */
+  const anchorHalf = size / 2 + borderW;
+
   return (
-    <div
-      className="relative z-[1000] flex items-center justify-center rounded-full border-[3px] border-white text-[13px] font-bold text-white"
-      style={{
-        background,
-        width: 36,
-        height: 36,
-        boxShadow: `0 3px 10px rgba(0,0,0,0.5), 0 0 0 2px ${background}`,
-      }}
-    >
-      {number}
+    <div className="relative z-[1100] h-0 w-0 overflow-visible">
+      <div
+        className="absolute left-0 top-0 flex cursor-pointer items-center gap-1"
+        style={{
+          transform: `translate(-${anchorHalf}px, -${anchorHalf}px)`,
+        }}
+      >
+        <div
+          className="flex shrink-0 items-center justify-center overflow-hidden rounded-full"
+          style={{
+            width: size,
+            height: size,
+            border: `${borderW}px solid ${borderColor}`,
+            boxShadow: shadow,
+          }}
+        >
+          {hasPhoto ? (
+            <img
+              src={`/api/places/photo?ref=${encodeURIComponent(photoRef)}&maxwidth=80`}
+              alt=""
+              className="h-full w-full object-cover [image-rendering:crisp-edges]"
+              width={size}
+              height={size}
+              loading="lazy"
+              draggable={false}
+            />
+          ) : (
+            <span
+              className="flex h-full w-full items-center justify-center leading-none"
+              style={{ background: bg, fontSize: Math.round(size * 0.42) }}
+              aria-hidden
+            >
+              {emoji}
+            </span>
+          )}
+        </div>
+        <div
+          className={`flex max-w-[200px] shrink-0 items-center gap-1 rounded-[20px] py-[3px] pl-1 pr-2 backdrop-blur-[4px] ${
+            isSelected ? 'border border-[#1d9e75]' : 'border border-[rgba(255,255,255,0.15)]'
+          }`}
+          style={{ background: 'rgba(15,15,20,0.85)' }}
+        >
+          <span className="shrink-0 text-[12px] leading-none" aria-hidden>
+            {emoji}
+          </span>
+          <span className="min-w-0 text-[11px] font-semibold leading-tight text-white">{labelTitle}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -271,18 +432,17 @@ function SelectionFollow({
 
 type MarkerPinProps = {
   entry: MapMarkerEntry;
+  photoRef: PhotoLoadState;
+  isSelected: boolean;
   onOpen: () => void;
 };
 
-function MarkerPin({ entry, onOpen }: MarkerPinProps) {
+function MarkerPin({ entry, photoRef, isSelected, onOpen }: MarkerPinProps) {
   const position = { lat: entry.lat, lng: entry.lng };
-  const seq = entry.sequence;
 
   return (
     <AdvancedMarker position={position} title={entry.title} onClick={onOpen}>
-      <div className="-translate-x-1/2 -translate-y-1/2">
-        <NumberedPinGlyph number={seq} type={entry.type} />
-      </div>
+      <MindtripPinGlyph entry={entry} photoRef={photoRef} isSelected={isSelected} />
     </AdvancedMarker>
   );
 }
@@ -324,6 +484,8 @@ function MapInner({
     () => buildMarkerEntries(activities, dayNumber, removedIds),
     [activities, dayNumber, removedIds]
   );
+
+  const pinPhotos = useMarkerPinPhotos(markerEntries);
 
   const path = useMemo(
     () => markerEntries.map((m) => ({ lat: m.lat, lng: m.lng })),
@@ -368,7 +530,7 @@ function MapInner({
 
   return (
     <div className="relative h-full min-h-0 w-full">
-      <Map
+      <GoogleMap
         mapId={mapId}
         defaultCenter={defaultCenter}
         defaultZoom={initialZoom}
@@ -391,6 +553,13 @@ function MapInner({
           <MarkerPin
             key={`${entry.activityIndex}-${entry.lat}-${entry.lng}`}
             entry={entry}
+            photoRef={pinPhotos[entry.activityIndex]}
+            isSelected={
+              panelIndex === entry.activityIndex ||
+              (selectedIndex !== null &&
+                selectedIndex !== undefined &&
+                selectedIndex === entry.activityIndex)
+            }
             onOpen={() => handleMarkerOpen(entry.activityIndex)}
           />
         ))}
@@ -418,7 +587,7 @@ function MapInner({
         ) : (
           <GeocodeFallback mapQuery={mapQuery} defaultZoom={defaultZoom} />
         )}
-      </Map>
+      </GoogleMap>
 
       {panelMarker ? (
         <>
