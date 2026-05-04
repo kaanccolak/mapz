@@ -21,19 +21,24 @@
 - `lib/AuthContext.tsx` — auth state yönetimi
 - `lib/planService.ts` — Firestore plan kaydet/oku/sil
 - `lib/gezleLimits.ts` — sorgu limiti
+- `lib/placesValidation.ts` — Places API ile kapalı mekan doğrulaması
 - `components/HeroSearch.tsx` — ana form
 - `components/MapView.tsx` — Google Maps harita
+- `components/PlaceDetailPanel.tsx` — harita pin detay paneli
 - `components/PdfExport.tsx` — PDF export
 - `components/AccommodationPlan.tsx` — konaklama bölümü
 - `components/Navbar.tsx` — navigasyon
 - `components/AuthModal.tsx` — giriş/kayıt
 - `components/ReservationModal.tsx` — rezervasyon bilgileri
 - `components/PlanViewLayout.tsx` — plan görüntüleme layout
+- `app/api/places/nearby/route.ts` — Places API proxy (nearby search)
+- `app/api/places/details/route.ts` — Places API proxy (place details)
+- `app/api/places/photo/route.ts` — Places API proxy (fotoğraf)
 
 ## Environment Variables (.env.local)
 - `ANTHROPIC_API_KEY`
-- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
-- `GOOGLE_MAPS_API_KEY` (server-side)
+- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` — client-side harita + Places proxy istekleri
+- `GOOGLE_MAPS_API_KEY` — server-side harita ve Places API doğrulaması
 - `OPENTRIPMAP_API_KEY`
 - `NEXT_PUBLIC_FIREBASE_API_KEY`
 - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
@@ -42,6 +47,11 @@
 - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
 - `NEXT_PUBLIC_FIREBASE_APP_ID`
 - `NEXT_PUBLIC_APP_URL` (https://mapz-kappa.vercel.app)
+
+**Google Cloud Console:** Aşağıdaki API’lerin etkin olması gerekir:
+- Maps JavaScript API
+- Places API
+- Geocoding API
 
 ## Tamamlanan Özellikler
 - Nereye? alanında ülke/şehir autocomplete (Türkçe normalize)
@@ -78,12 +88,20 @@
 - Ana sayfa sadece form — extra section'lar kaldırıldı
 - SEO meta tags (`app/layout.tsx`)
 - `PlanViewLayout.tsx` — ortak plan görüntüleme komponenti
+- Places API entegrasyonu — kapalı mekan doğrulaması (`CLOSED_PERMANENTLY` filtresi)
+- Fotoğraflı harita pinleri — Mindtrip tarzı, mekan adı + kategori ikonu etiket
+- Pin detay paneli — fotoğraf carousel (3 foto), puan, yorum sayısı, fiyat seviyesi, adres, açık/kapalı durumu, 2 yorum, editorial summary
+- Places API in-memory cache — aynı mekana tekrar istek atılmaz
+- Pin anchor düzeltmesi — koordinat offset sorunu giderildi
 
 ## Teknik Notlar
 - React Strict Mode KAPALI (next.config.ts)
 - useRef hasFetched ile çift fetch koruması
 - OpenTripMap: rate=3, limit=50, slice(0,40), 500ms delay
-- Places API KALDIRILDI (yavaş + güvenilir değil)
+- Places API proxy: CORS sorununu önlemek için server-side route’lar (`app/api/places/*`) kullanılıyor
+- Kapalı mekan doğrulaması: plan oluştuktan sonra her aktivite için sıralı Places API sorgusu; `CLOSED_PERMANENTLY` olanlar için Claude’dan alternatif isteniyor
+- Pin fotoğrafları: nearby search → `place_id` → `photo_reference` → proxy URL (`/api/places/photo`)
+- Cache: `Map<string, PlaceDetails>` ile component bazlı önbellekleme
 - Claude prompt: mekan tekrarı yok, kahvaltı her gün, köklü mekanlar tercih et
 - Türkçe normalize: toLocaleLowerCase('tr-TR')
 - Google Maps zoom: useMap + panTo, key prop yok
