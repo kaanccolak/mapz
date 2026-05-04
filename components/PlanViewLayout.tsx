@@ -90,10 +90,10 @@ export function PlanViewLayout({
   const activeDay = data.plan.days[activeDayIndex];
 
   return (
-    <div className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-[#f8f8f7] md:flex-row">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f8f8f7] md:flex-row">
       <aside
-        className={`flex min-h-0 w-full flex-1 flex-col overflow-hidden border-b border-[#e5e7eb] bg-white md:w-[380px] md:flex-none md:border-b-0 md:border-r ${
-          mobileView === 'map' ? 'hidden md:flex' : 'flex'
+        className={`flex h-full min-h-0 w-full flex-col overflow-hidden border-b border-[#e5e7eb] bg-white md:w-[380px] md:shrink-0 md:flex-none md:border-b-0 md:border-r ${
+          mobileView === 'map' ? 'hidden md:flex' : 'flex flex-1 md:flex-none'
         }`}
       >
         {modeBanner}
@@ -221,8 +221,8 @@ export function PlanViewLayout({
       </aside>
 
       <main
-        className={`relative w-full flex-1 overflow-hidden bg-[#e5e7eb] md:min-h-0 ${
-          mobileView === 'list' ? 'hidden min-h-0 md:block' : 'flex min-h-0 flex-1 flex-col'
+        className={`relative h-full min-h-0 w-full flex-1 overflow-hidden bg-[#e5e7eb] md:min-h-0 ${
+          mobileView === 'list' ? 'hidden min-h-0 md:block md:h-full' : 'flex min-h-0 flex-1 flex-col'
         }`}
       >
         {activeDay ? (

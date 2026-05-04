@@ -1,7 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { assignBookingUrlsToHotelSuggestions } from '@/lib/booking';
 import { tripNightsBetween } from '@/lib/opentripmap';
-import { mergeBudgetIncludes, type HotelSuggestion, type PlanRequest, type TripPlan } from '@/types';
+import {
+  mergeBudgetIncludes,
+  type Activity,
+  type ActivityType,
+  type HotelSuggestion,
+  type PlanRequest,
+  type TripPlan,
+} from '@/types';
 import { adultsFromRequest } from '@/lib/iata';
 
 const MODEL = 'claude-sonnet-4-5';
@@ -326,7 +333,7 @@ function scrubSpecificAirportsInText(text: string): string {
 }
 
 /** Bilet yokken: ilk/son gün saatlerini temizler, özel havaalanı adlarını name/description'dan siler. */
-function sanitizeNoTicketFlightDays(plan: TripPlan, hasTicket: boolean): TripPlan {
+export function sanitizeNoTicketFlightDays(plan: TripPlan, hasTicket: boolean): TripPlan {
   if (hasTicket || !plan.days?.length) return plan;
   const n = plan.days.length;
   const edge = new Set([0, n - 1]);
@@ -402,6 +409,114 @@ Sadece şehir isimlerini İngilizce ver, virgülle ayır. Başka hiçbir şey ya
     dedup.push(c);
   }
   return dedup.slice(0, 5);
+}
+
+export type ClosedVenueClosure = {
+  dayNumber: number;
+  city: string;
+  name: string;
+  type: ActivityType;
+  time: string;
+  duration: string;
+};
+
+function parseReplacementsJson(text: string): Array<{ dayNumber: number; closedName: string; activity: Activity }> {
+  let clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const jsonStart = clean.indexOf('{');
+  if (jsonStart !== -1) clean = clean.substring(jsonStart);
+  const jsonEnd = clean.lastIndexOf('}');
+  if (jsonEnd !== -1) clean = clean.substring(0, jsonEnd + 1);
+
+  let parsed: { replacements?: unknown };
+  try {
+    parsed = JSON.parse(clean) as { replacements?: unknown };
+  } catch (e) {
+    console.error('[claude] replacements JSON parse', e);
+    return [];
+  }
+
+  const raw = parsed.replacements;
+  if (!Array.isArray(raw)) return [];
+
+  const out: Array<{ dayNumber: number; closedName: string; activity: Activity }> = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const rec = item as Record<string, unknown>;
+    const dayNumber = Number(rec.dayNumber);
+    const closedName = typeof rec.closedName === 'string' ? rec.closedName.trim() : '';
+    const act = rec.activity as Activity | undefined;
+    if (!Number.isFinite(dayNumber) || !closedName || !act || typeof act !== 'object') continue;
+    const name = typeof act.name === 'string' ? act.name : '';
+    if (!name.trim()) continue;
+    out.push({
+      dayNumber,
+      closedName,
+      activity: {
+        time: typeof act.time === 'string' ? act.time : '',
+        name: act.name as string,
+        description: typeof act.description === 'string' ? act.description : '',
+        type: (['gezi', 'yemek', 'kafe', 'aktif'].includes(String(act.type))
+          ? act.type
+          : 'gezi') as ActivityType,
+        duration: typeof act.duration === 'string' ? act.duration : '',
+        lat: typeof act.lat === 'number' ? act.lat : undefined,
+        lng: typeof act.lng === 'number' ? act.lng : undefined,
+      },
+    });
+  }
+  return out;
+}
+
+/** Kapalı mekanlar için alternatif aktiviteler üretir; başarısızsa boş dizi. */
+export async function generateReplacementsForClosedVenues(
+  request: PlanRequest,
+  closures: ClosedVenueClosure[],
+): Promise<Array<{ dayNumber: number; closedName: string; activity: Activity }>> {
+  if (!closures.length) return [];
+
+  const client = getAnthropicClient();
+  const lines = closures
+    .map(
+      (c) =>
+        `- Gün ${c.dayNumber} (${c.city}): "${c.name}" (tip: ${c.type}, saat: ${c.time || '—'}, süre: ${c.duration || '—'})`,
+    )
+    .join('\n');
+
+  const userMsg = `Şu mekanlar kalıcı olarak kapalı:\n${lines}\n\nBunların yerine aynı gün numarasında, aynı aktivite tipinde (type) ve mümkünse aynı saat bandında gerçek, işletme halinde mekanlar öner. Her kapalı mekan için tam bir aktivite nesnesi üret.\n\nYanıtın SADECE şu JSON formatında olsun, başka metin yazma:\n{\n  "replacements": [\n    {\n      "dayNumber": 1,\n      "closedName": "Kapanan mekanın tam adı (yukarıdaki liste ile birebir aynı)",\n      "activity": {\n        "time": "09:30",\n        "name": "...",\n        "description": "...",\n        "type": "gezi",\n        "duration": "60 dakika",\n        "lat": 0,\n        "lng": 0\n      }\n    }\n  ]\n}\n\nÖNEMLİ: Her replacements öğesi listedeki bir kapalı mekana karşılık gelmeli; closedName, yukarıdaki tırnak içi adla birebir eşleşmeli. lat ve lng gerçek koordinat olsun.`;
+
+  const message = await client.messages.create({
+    model: MODEL,
+    max_tokens: 8000,
+    temperature: 0.4,
+    system:
+      'You output ONLY valid JSON with a "replacements" array. No markdown, no explanation. Property names in English double quotes only.',
+    messages: [{ role: 'user', content: userMsg }],
+  });
+
+  const text = extractText(message);
+  return parseReplacementsJson(text);
+}
+
+export function applyActivityReplacements(
+  plan: TripPlan,
+  replacements: Array<{ dayNumber: number; closedName: string; activity: Activity }>,
+): TripPlan {
+  if (!replacements.length) return plan;
+
+  const days = plan.days.map((day) => ({
+    ...day,
+    activities: [...day.activities],
+  }));
+
+  for (const rep of replacements) {
+    const day = days.find((d) => d.dayNumber === rep.dayNumber);
+    if (!day) continue;
+    const idx = day.activities.findIndex((a) => a.name.trim() === rep.closedName.trim());
+    if (idx === -1) continue;
+    day.activities[idx] = { ...rep.activity };
+  }
+
+  return { ...plan, days };
 }
 
 export async function generateTripPlan(request: PlanRequest, placesText: string): Promise<TripPlan> {

@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 import { normalizeDepartureIata } from '@/lib/departure-airports';
-import { buildUserMessage, generateTripPlan, resolveTripCities } from '@/lib/claude';
+import {
+  applyActivityReplacements,
+  buildUserMessage,
+  type ClosedVenueClosure,
+  generateReplacementsForClosedVenues,
+  generateTripPlan,
+  resolveTripCities,
+  sanitizeNoTicketFlightDays,
+} from '@/lib/claude';
+import { assignBookingUrlsToHotelSuggestions } from '@/lib/booking';
+import { validatePlaces, type PlaceInput } from '@/lib/placesValidation';
 import {
   fetchWithTimeout,
   formatPlacesLinesFromRadius,
@@ -210,7 +220,60 @@ export async function POST(req: Request) {
     console.log('OpenTripMap mekan listesi:', placesText);
     console.log('Claude prompt:', prompt);
 
-    const plan = await generateTripPlan(planRequest, placesText);
+    let plan = await generateTripPlan(planRequest, placesText);
+
+    const googleServerKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
+    if (googleServerKey && plan.days?.length) {
+      const inputs: PlaceInput[] = [];
+      for (const day of plan.days) {
+        for (const a of day.activities) {
+          inputs.push({ name: a.name.trim(), location: day.city });
+        }
+      }
+      try {
+        const { removed } = await validatePlaces(inputs, googleServerKey);
+        if (removed.length > 0) {
+          const removedSet = new Set(removed);
+          const closures: ClosedVenueClosure[] = [];
+          for (const day of plan.days) {
+            for (const a of day.activities) {
+              const label = `${a.name.trim()} (${day.city})`;
+              if (removedSet.has(label)) {
+                closures.push({
+                  dayNumber: day.dayNumber,
+                  city: day.city,
+                  name: a.name,
+                  type: a.type,
+                  time: a.time,
+                  duration: a.duration,
+                });
+              }
+            }
+          }
+          const reps = await generateReplacementsForClosedVenues(planRequest, closures);
+          if (reps.length) {
+            plan = applyActivityReplacements(plan, reps);
+          }
+          plan = {
+            ...plan,
+            days: plan.days.map((day) => ({
+              ...day,
+              activities: day.activities.filter(
+                (a) => !removedSet.has(`${a.name.trim()} (${day.city})`),
+              ),
+            })),
+          };
+        }
+      } catch (e) {
+        console.warn('[api/plan] validatePlaces / replacements', e);
+      }
+      plan = sanitizeNoTicketFlightDays(plan, planRequest.hasTicket);
+      plan = {
+        ...plan,
+        hotelSuggestions: assignBookingUrlsToHotelSuggestions(plan.hotelSuggestions ?? [], planRequest),
+      };
+    }
+
     return NextResponse.json(plan);
   } catch (e) {
     console.error('[api/plan]', e);

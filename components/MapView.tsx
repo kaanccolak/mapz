@@ -1,15 +1,8 @@
 'use client';
 
-import {
-  AdvancedMarker,
-  APIProvider,
-  InfoWindow,
-  Map,
-  useAdvancedMarkerRef,
-  useMap,
-  useMapsLibrary,
-} from '@vis.gl/react-google-maps';
+import { AdvancedMarker, APIProvider, Map, useMap, useMapsLibrary } from '@vis.gl/react-google-maps';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { PlaceDetailPanel } from '@/components/PlaceDetailPanel';
 import type { Activity, ActivityType } from '@/types';
 
 type MapMarkerEntry = {
@@ -22,6 +15,7 @@ type MapMarkerEntry = {
   name: string;
   time: string;
   duration: string;
+  description: string;
 };
 
 export type MapViewProps = {
@@ -101,6 +95,7 @@ function buildMarkerEntries(
       name: a.name,
       time: a.time,
       duration: a.duration,
+      description: typeof a.description === 'string' ? a.description : '',
     });
   });
   return out;
@@ -276,53 +271,19 @@ function SelectionFollow({
 
 type MarkerPinProps = {
   entry: MapMarkerEntry;
-  isOpen: boolean;
   onOpen: () => void;
-  onClose: () => void;
 };
 
-function MarkerPin({ entry, isOpen, onOpen, onClose }: MarkerPinProps) {
-  const [markerRef, markerEl] = useAdvancedMarkerRef();
+function MarkerPin({ entry, onOpen }: MarkerPinProps) {
   const position = { lat: entry.lat, lng: entry.lng };
   const seq = entry.sequence;
-  const headline = entry.name;
-  const hasTime = entry.time != null && String(entry.time).trim() !== '';
-  const timeLine = hasTime
-    ? entry.duration != null && String(entry.duration).trim() !== ''
-      ? `${entry.time} · ${entry.duration}`
-      : String(entry.time)
-    : entry.duration != null && String(entry.duration).trim() !== ''
-      ? String(entry.duration)
-      : '';
 
   return (
-    <>
-      <AdvancedMarker
-        ref={markerRef}
-        position={position}
-        title={entry.title}
-        onClick={onOpen}
-      >
-        <div className="-translate-x-1/2 -translate-y-1/2">
-          <NumberedPinGlyph number={seq} type={entry.type} />
-        </div>
-      </AdvancedMarker>
-      {isOpen && markerEl ? (
-        <InfoWindow anchor={markerEl} onCloseClick={onClose}>
-          <div className="max-w-[240px] text-[13px] text-[#0a0a0f]">
-            <strong>
-              {seq}. {headline}
-            </strong>
-            {timeLine ? (
-              <>
-                <br />
-                {timeLine}
-              </>
-            ) : null}
-          </div>
-        </InfoWindow>
-      ) : null}
-    </>
+    <AdvancedMarker position={position} title={entry.title} onClick={onOpen}>
+      <div className="-translate-x-1/2 -translate-y-1/2">
+        <NumberedPinGlyph number={seq} type={entry.type} />
+      </div>
+    </AdvancedMarker>
   );
 }
 
@@ -353,7 +314,11 @@ function MapInner({
   centerLat,
   centerLng,
 }: MapInnerProps) {
-  const [popupIndex, setPopupIndex] = useState<number | null>(null);
+  const [panelIndex, setPanelIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    setPanelIndex(null);
+  }, [dayNumber]);
 
   const markerEntries = useMemo(
     () => buildMarkerEntries(activities, dayNumber, removedIds),
@@ -366,8 +331,23 @@ function MapInner({
   );
 
   const onPopupReady = useCallback((index: number | null) => {
-    setPopupIndex(index);
+    setPanelIndex(index);
   }, []);
+
+  const panelMarker = useMemo(() => {
+    if (panelIndex == null) return null;
+    const e = markerEntries.find((m) => m.activityIndex === panelIndex);
+    if (!e) return null;
+    return {
+      name: e.name,
+      lat: e.lat,
+      lng: e.lng,
+      time: e.time,
+      duration: e.duration,
+      sequence: e.sequence,
+      activityDescription: e.description,
+    };
+  }, [panelIndex, markerEntries]);
 
   const defaultCenter = path[0] ?? { lat: 41.0082, lng: 28.9784 };
   const initialZoom = path.length === 0 ? 5 : defaultZoom;
@@ -375,70 +355,85 @@ function MapInner({
 
   const handleMarkerOpen = useCallback(
     (activityIndex: number) => {
+      setPanelIndex(activityIndex);
       onMarkerClick?.(activityIndex);
     },
     [onMarkerClick]
   );
 
-  const handleInfoClose = useCallback(() => {
-    setPopupIndex(null);
+  const handlePanelClose = useCallback(() => {
+    setPanelIndex(null);
     onSelectionClear?.();
   }, [onSelectionClear]);
 
   return (
-    <Map
-      mapId={mapId}
-      defaultCenter={defaultCenter}
-      defaultZoom={initialZoom}
-      gestureHandling="greedy"
-      disableDefaultUI={false}
-      style={{
-        width: '100%',
-        height: '100%',
-        minHeight: isMobile ? 0 : 320,
-      }}
-    >
-      <SelectionFollow
-        selectedIndex={selectedIndex}
-        activities={activities}
-        dayNumber={dayNumber}
-        removedIds={removedIds}
-        onPopupReady={onPopupReady}
-      />
-      {markerEntries.map((entry) => (
-        <MarkerPin
-          key={`${entry.activityIndex}-${entry.lat}-${entry.lng}`}
-          entry={entry}
-          isOpen={popupIndex === entry.activityIndex}
-          onOpen={() => handleMarkerOpen(entry.activityIndex)}
-          onClose={handleInfoClose}
+    <div className="relative h-full min-h-0 w-full">
+      <Map
+        mapId={mapId}
+        defaultCenter={defaultCenter}
+        defaultZoom={initialZoom}
+        gestureHandling="greedy"
+        disableDefaultUI={false}
+        style={{
+          width: '100%',
+          height: '100%',
+          minHeight: isMobile ? 0 : 320,
+        }}
+      >
+        <SelectionFollow
+          selectedIndex={selectedIndex}
+          activities={activities}
+          dayNumber={dayNumber}
+          removedIds={removedIds}
+          onPopupReady={onPopupReady}
         />
-      ))}
-      {path.length > 0 ? (
+        {markerEntries.map((entry) => (
+          <MarkerPin
+            key={`${entry.activityIndex}-${entry.lat}-${entry.lng}`}
+            entry={entry}
+            onOpen={() => handleMarkerOpen(entry.activityIndex)}
+          />
+        ))}
+        {path.length > 0 ? (
+          <>
+            <MapCenterFromProps
+              centerLat={centerLat}
+              centerLng={centerLng}
+              defaultZoom={defaultZoom}
+              selectedIndex={selectedIndex}
+              activities={activities}
+              dayNumber={dayNumber}
+              removedIds={removedIds}
+            />
+            <MapPanToFirstActivity
+              activities={activities}
+              dayNumber={dayNumber}
+              removedIds={removedIds}
+              selectedIndex={selectedIndex}
+              defaultZoom={defaultZoom}
+              centerLat={centerLat}
+              centerLng={centerLng}
+            />
+          </>
+        ) : (
+          <GeocodeFallback mapQuery={mapQuery} defaultZoom={defaultZoom} />
+        )}
+      </Map>
+
+      {panelMarker ? (
         <>
-          <MapCenterFromProps
-            centerLat={centerLat}
-            centerLng={centerLng}
-            defaultZoom={defaultZoom}
-            selectedIndex={selectedIndex}
-            activities={activities}
-            dayNumber={dayNumber}
-            removedIds={removedIds}
-          />
-          <MapPanToFirstActivity
-            activities={activities}
-            dayNumber={dayNumber}
-            removedIds={removedIds}
-            selectedIndex={selectedIndex}
-            defaultZoom={defaultZoom}
-            centerLat={centerLat}
-            centerLng={centerLng}
-          />
+          {isMobile ? (
+            <button
+              type="button"
+              className="absolute inset-0 z-[1300] bg-black/45 backdrop-blur-[1px] transition-opacity"
+              onClick={handlePanelClose}
+              aria-label="Paneli kapat"
+            />
+          ) : null}
+          <PlaceDetailPanel marker={panelMarker} isMobile={isMobile} onClose={handlePanelClose} />
         </>
-      ) : (
-        <GeocodeFallback mapQuery={mapQuery} defaultZoom={defaultZoom} />
-      )}
-    </Map>
+      ) : null}
+    </div>
   );
 }
 
@@ -471,7 +466,7 @@ export function MapView({
 
   return (
     <div
-      className={`h-full w-full min-h-0 overflow-hidden ${isMobile ? '' : 'min-h-[320px]'} ${className}`}
+      className={`h-full w-full min-h-0 overflow-hidden ${className}`}
       style={{ height: isMobile ? 'calc(100vh - 60px)' : '100%' }}
     >
       <APIProvider apiKey={apiKey} libraries={['geocoding', 'marker']}>
