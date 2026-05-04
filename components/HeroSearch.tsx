@@ -14,6 +14,7 @@ import {
 } from '@/lib/gezleLimits';
 import { nightsBetween } from '@/lib/planDisplayMeta';
 import { useAuth } from '@/lib/AuthContext';
+import { formatClockInput, isValidClockTime } from '@/lib/formatClockInput';
 import { mergeGroupDetails, type BudgetIncludes, type DepartureIata, type PlanRequest } from '@/types';
 
 const PLAN_REQUEST_KEY = 'planRequest';
@@ -141,13 +142,6 @@ const normalize = (str: string) =>
 
 function openPickerOnClick(e: ReactMouseEvent<HTMLInputElement>) {
   void (e.target as HTMLInputElement).showPicker?.();
-}
-
-/** Uçuş saati: rakamlar, en fazla 4 hane; 2. haneden sonra otomatik ":" */
-function formatClockInput(raw: string): string {
-  const digits = raw.replace(/\D/g, '').slice(0, 4);
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }
 
 type HeroSearchProps = {
@@ -371,9 +365,15 @@ export function HeroSearch({ onError }: HeroSearchProps) {
       return;
     }
     if (hasTicket) {
-      const flightTimeOk = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s.trim());
-      if (!arrivalTime.trim() || !departureTime.trim() || !flightTimeOk(arrivalTime) || !flightTimeOk(departureTime)) {
-        onError?.('Biletiniz varsa gidiş iniş ve dönüş kalkış saatlerini ss:aa formatında girin (örn. 17:00).');
+      if (
+        !arrivalTime.trim() ||
+        !departureTime.trim() ||
+        !isValidClockTime(arrivalTime) ||
+        !isValidClockTime(departureTime)
+      ) {
+        onError?.(
+          'Biletiniz varsa gidiş iniş ve dönüş kalkış saatlerini 00:00–23:59 arasında ss:aa olarak girin (örn. 17:00).',
+        );
         return;
       }
     }

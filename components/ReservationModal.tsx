@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { formatClockInput, isValidClockTime } from '@/lib/formatClockInput';
 
 export type FlightReservationLeg = {
   airline: string;
@@ -91,6 +92,7 @@ const modalShellClass =
 const labelClass = 'mb-1 block text-[12px] font-medium text-white/50';
 const inputClass =
   'w-full rounded-lg border border-white/15 bg-white/[0.06] px-3 py-2 text-[13px] text-white placeholder:text-white/25 outline-none focus:border-[#5dcaa5]/50 focus:ring-1 focus:ring-[#5dcaa5]/30';
+const timeInputClass = `${inputClass} h-11 min-w-0`;
 
 const flightCardClass =
   'rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:p-4';
@@ -155,10 +157,16 @@ function FlightLegCard({
         <div>
           <label className={labelClass}>Kalkış Saati</label>
           <input
-            type="time"
-            className={inputClass}
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="örn. 08:45"
+            pattern="[0-9]{2}:[0-9]{2}"
+            maxLength={5}
+            className={timeInputClass}
+            style={{ colorScheme: 'dark' }}
             value={leg.departureTime}
-            onChange={(e) => onFieldChange('departureTime', e.target.value)}
+            onChange={(e) => onFieldChange('departureTime', formatClockInput(e.target.value))}
           />
         </div>
       </div>
@@ -166,9 +174,15 @@ function FlightLegCard({
   );
 }
 
+function timeFieldOk(s: string): boolean {
+  const t = s.trim();
+  return t === '' || isValidClockTime(t);
+}
+
 export function ReservationModal({ open, onClose, reservationData, onSave }: Props) {
   const [draft, setDraft] = useState<ReservationData>(reservationData);
   const [returnSectionVisible, setReturnSectionVisible] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const clearReturnTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -179,6 +193,7 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
 
   useEffect(() => {
     if (!open) return;
+    setSaveError(null);
     setDraft({
       outboundFlight: reservationData.outboundFlight
         ? { ...reservationData.outboundFlight }
@@ -207,6 +222,7 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
   }, []);
 
   const setLegField = (which: LegKey, key: keyof FlightReservationLeg, value: string) => {
+    setSaveError(null);
     const current = draft[which] ?? { ...emptyLeg };
     const next: FlightReservationLeg = {
       ...current,
@@ -223,6 +239,7 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
     id: string,
     patch: Partial<ReservationData['hotels'][number]>,
   ) => {
+    setSaveError(null);
     setDraft((d) => ({
       ...d,
       hotels: d.hotels.map((h) => (h.id === id ? { ...h, ...patch } : h)),
@@ -252,11 +269,29 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
   };
 
   const handleSave = () => {
+    setSaveError(null);
     const outboundClean = draft.outboundFlight;
     const hasOutbound =
       outboundClean && Object.values(outboundClean).some((v) => String(v).trim());
     const returnClean = draft.returnFlight;
     const hasReturn = returnClean && Object.values(returnClean).some((v) => String(v).trim());
+
+    const legsToCheck: FlightReservationLeg[] = [];
+    if (hasOutbound && outboundClean) legsToCheck.push(outboundClean);
+    if (returnSectionVisible && hasReturn && returnClean) legsToCheck.push(returnClean);
+    for (const leg of legsToCheck) {
+      if (!timeFieldOk(leg.departureTime)) {
+        setSaveError('Uçuş kalkış saatini 00:00–23:59 arasında ss:aa olarak girin veya boş bırakın.');
+        return;
+      }
+    }
+    for (const h of draft.hotels) {
+      if (!timeFieldOk(h.checkInTime) || !timeFieldOk(h.checkOutTime)) {
+        setSaveError('Otel check-in / check-out saatlerini 00:00–23:59 arasında ss:aa olarak girin veya boş bırakın.');
+        return;
+      }
+    }
+
     onSave({
       outboundFlight: hasOutbound ? outboundClean : undefined,
       returnFlight: returnSectionVisible && hasReturn ? returnClean : undefined,
@@ -277,7 +312,7 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px] sm:p-6"
+      className="fixed inset-0 z-[1510] flex items-center justify-center bg-black/60 px-4 pb-4 pt-14 backdrop-blur-[2px] sm:px-6 sm:pb-6 sm:pt-14"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -417,10 +452,18 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
                       <div>
                         <label className={labelClass}>Check-in saati</label>
                         <input
-                          type="time"
-                          className={inputClass}
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          placeholder="örn. 15:00"
+                          pattern="[0-9]{2}:[0-9]{2}"
+                          maxLength={5}
+                          className={timeInputClass}
+                          style={{ colorScheme: 'dark' }}
                           value={h.checkInTime}
-                          onChange={(e) => updateHotel(h.id, { checkInTime: e.target.value })}
+                          onChange={(e) =>
+                            updateHotel(h.id, { checkInTime: formatClockInput(e.target.value) })
+                          }
                         />
                       </div>
                       <div>
@@ -435,10 +478,18 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
                       <div>
                         <label className={labelClass}>Check-out saati</label>
                         <input
-                          type="time"
-                          className={inputClass}
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          placeholder="örn. 11:00"
+                          pattern="[0-9]{2}:[0-9]{2}"
+                          maxLength={5}
+                          className={timeInputClass}
+                          style={{ colorScheme: 'dark' }}
                           value={h.checkOutTime}
-                          onChange={(e) => updateHotel(h.id, { checkOutTime: e.target.value })}
+                          onChange={(e) =>
+                            updateHotel(h.id, { checkOutTime: formatClockInput(e.target.value) })
+                          }
                         />
                       </div>
                     </div>
@@ -450,7 +501,12 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
           </section>
         </div>
 
-        <div className="flex shrink-0 border-t border-white/10 bg-[#111118] px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex shrink-0 flex-col gap-2 border-t border-white/10 bg-[#111118] px-4 py-3 sm:px-6 sm:py-4">
+          {saveError ? (
+            <p className="text-center text-[12px] leading-snug text-red-400/95" role="alert">
+              {saveError}
+            </p>
+          ) : null}
           <button
             type="button"
             onClick={handleSave}
