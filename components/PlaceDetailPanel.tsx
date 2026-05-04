@@ -367,11 +367,11 @@ export function PlaceDetailPanel({ marker, isMobile, onClose }: Props) {
 
   return (
     <div
-      className={`pointer-events-none absolute inset-0 z-[1400] ${isMobile ? 'flex items-end justify-stretch' : 'flex items-start justify-start p-3'}`}
+      className={`pointer-events-none absolute inset-0 ${isMobile ? 'z-[1600] flex items-end justify-stretch' : 'z-[1400] flex items-start justify-start p-3'}`}
       role="presentation"
     >
       <div
-        className={`${panelBaseClass} ${isMobile ? `fixed inset-x-0 bottom-0 z-[1400] h-auto max-h-[70vh] w-full rounded-t-[16px] ${mobileMotion}` : `relative w-[320px] max-h-[520px] rounded-[12px] ${desktopMotion}`}`}
+        className={`${panelBaseClass} ${isMobile ? `fixed inset-x-0 bottom-0 z-[1600] h-auto max-h-[70vh] w-full rounded-t-[16px] ${mobileMotion}` : `relative z-[1400] w-[320px] max-h-[520px] rounded-[12px] ${desktopMotion}`}`}
         role="dialog"
         aria-modal="true"
         aria-label="Mekan detayı"

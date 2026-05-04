@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import type { Dispatch, ReactNode, SetStateAction } from 'react';
+import { useCallback, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { AccommodationPlan } from '@/components/AccommodationPlan';
 import { DayCard } from '@/components/DayCard';
 import type { PdfExpenses } from '@/components/PdfExport';
@@ -88,6 +88,27 @@ export function PlanViewLayout({
   const metaPeople = peopleLabels[req.people];
   const metaCar = req.hasRentalCar ? 'Araçlı' : 'Araçsız';
   const activeDay = data.plan.days[activeDayIndex];
+  const [mapDetailPanelOpen, setMapDetailPanelOpen] = useState(false);
+  const [mobileListFocusNonce, setMobileListFocusNonce] = useState(0);
+
+  const handleActivitySelect = useCallback(
+    (index: number) => {
+      setSelectedActivityIndex(index);
+      if (isNarrowViewport) {
+        setMobileView('map');
+        setMobileListFocusNonce((n) => n + 1);
+      }
+    },
+    [isNarrowViewport, setSelectedActivityIndex, setMobileView],
+  );
+
+  const handleActiveDayChange = useCallback(
+    (i: number) => {
+      setActiveDayIndex(i);
+      setMobileListFocusNonce(0);
+    },
+    [setActiveDayIndex],
+  );
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f8f8f7] md:flex-row">
@@ -185,7 +206,7 @@ export function PlanViewLayout({
               <button
                 key={d.dayNumber}
                 type="button"
-                onClick={() => setActiveDayIndex(i)}
+                onClick={() => handleActiveDayChange(i)}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors ${
                   i === activeDayIndex
                     ? 'bg-[#1d9e75] text-white'
@@ -211,7 +232,8 @@ export function PlanViewLayout({
                   onRemove={removeActivity}
                   onRestore={restoreActivity}
                   selectedActivityIndex={selectedActivityIndex}
-                  onActivitySelect={setSelectedActivityIndex}
+                  onActivitySelect={handleActivitySelect}
+                  showMapOnMobileHint={isNarrowViewport}
                   readOnly={readOnly}
                 />
               </div>
@@ -227,6 +249,22 @@ export function PlanViewLayout({
       >
         {activeDay ? (
           <div className="absolute inset-0 min-h-0">
+            {isNarrowViewport && mobileView === 'map' ? (
+              <div
+                className="pointer-events-none absolute left-1/2 top-3 z-[500] min-w-0 max-w-[min(calc(100vw-1.5rem),28rem)] -translate-x-1/2 truncate text-center text-[12px] font-medium text-white md:hidden"
+                style={{
+                  background: 'rgba(10,10,15,0.85)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 20,
+                  padding: '6px 16px',
+                }}
+                role="status"
+                aria-live="polite"
+              >
+                📅 {activeDay.date} · {activeDay.title}
+              </div>
+            ) : null}
             <MapView
               mapQuery={activeDay.mapQuery}
               activities={activeDay.activities}
@@ -238,10 +276,25 @@ export function PlanViewLayout({
               className="h-full w-full min-h-0"
               defaultZoom={mapDefaultZoom}
               isMobile={isNarrowViewport}
+              onDetailPanelOpenChange={setMapDetailPanelOpen}
+              mobileListFocusNonce={mobileListFocusNonce}
             />
           </div>
         ) : null}
       </main>
+
+      {isNarrowViewport && mobileView === 'map' && mapDetailPanelOpen ? (
+        <button
+          type="button"
+          className="fixed left-0 right-0 z-[1550] bg-[rgba(0,0,0,0.5)] md:hidden"
+          style={{
+            top: '3.5rem',
+            bottom: 'max(3.75rem, calc(2.75rem + env(safe-area-inset-bottom, 0px)))',
+          }}
+          onClick={() => setSelectedActivityIndex(null)}
+          aria-label="Detayı kapat"
+        />
+      ) : null}
 
       {showExpenses ? (
         <div

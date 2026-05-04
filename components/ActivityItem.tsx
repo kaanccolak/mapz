@@ -28,6 +28,8 @@ type ActivityItemProps = {
   onSelect: (index: number) => void;
   onRemove: (id: string) => void;
   onRestore: (id: string) => void;
+  /** Mobil planda haritaya geçiş ipucu */
+  showMapOnMobileHint?: boolean;
   readOnly?: boolean;
 };
 
@@ -42,6 +44,7 @@ export function ActivityItem({
   onSelect,
   onRemove,
   onRestore,
+  showMapOnMobileHint = false,
   readOnly = false,
 }: ActivityItemProps) {
   const badgeBg = typeBadgeColors[activity.type] ?? '#888780';
@@ -64,7 +67,7 @@ export function ActivityItem({
           onSelect(activityIndex);
         }
       }}
-      className={`group relative flex items-start gap-3 rounded-[12px] border border-[#e5e7eb] bg-white px-3 py-2 outline-none transition-[border-color] ${
+      className={`group relative flex items-start gap-3 rounded-[12px] border border-[#e5e7eb] bg-white py-2 pl-3 pr-2 outline-none transition-[border-color] md:pr-3 ${
         removed ? 'cursor-default opacity-50' : 'cursor-pointer hover:bg-[#fafafa]'
       } ${selected ? 'border-l-[3px] border-solid' : ''}`}
       style={
@@ -98,8 +101,17 @@ export function ActivityItem({
           </span>
         ) : null}
       </div>
+      {showMapOnMobileHint && !removed ? (
+        <span
+          className="pointer-events-none absolute right-10 top-2 select-none text-[13px] opacity-40 md:hidden"
+          title="Haritada göster"
+          aria-hidden
+        >
+          🗺️
+        </span>
+      ) : null}
       {!readOnly ? (
-        <div className="flex shrink-0 flex-col items-end gap-1">
+        <div className="relative z-[1] flex shrink-0 flex-col items-end gap-1">
           {!removed ? (
             <button
               type="button"

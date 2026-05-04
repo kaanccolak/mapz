@@ -7,7 +7,7 @@ import {
   useMap,
   useMapsLibrary,
 } from '@vis.gl/react-google-maps';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PlaceDetailPanel } from '@/components/PlaceDetailPanel';
 import type { Activity, ActivityType } from '@/types';
 
@@ -41,6 +41,10 @@ export type MapViewProps = {
   /** Verilirse aktivite listesinden önce bu noktaya pan/zoom uygulanır */
   centerLat?: number;
   centerLng?: number;
+  /** Mobil detay paneli açık/kapalı (üst layout’ta scrim için) */
+  onDetailPanelOpenChange?: (open: boolean) => void;
+  /** Mobil planda aktivite satırına her tıklamada artar; harita yalnızca konuma gider (panel açılmaz) */
+  mobileListFocusNonce?: number;
 };
 
 /** Koordinat + isim ile nearby foto önbelleği (photo_reference veya null) */
@@ -375,17 +379,26 @@ type SelectionFollowProps = {
   dayNumber: number;
   removedIds: Set<string>;
   onPopupReady: (index: number | null) => void;
+  isMobile: boolean;
+  mobileListFocusNonce: number;
 };
 
-/** selectedIndex değişince haritayı animasyonla odağa taşır; popup gecikmesi pan animasyonu için */
+/** selectedIndex değişince haritayı odağa taşır; masaüstünde kısa gecikmeyle detay paneli açar */
 function SelectionFollow({
   selectedIndex,
   activities,
   dayNumber,
   removedIds,
   onPopupReady,
+  isMobile,
+  mobileListFocusNonce,
 }: SelectionFollowProps) {
   const map = useMap();
+  const lastProcessedListNonceRef = useRef(0);
+
+  useEffect(() => {
+    lastProcessedListNonceRef.current = 0;
+  }, [dayNumber]);
 
   useEffect(() => {
     if (selectedIndex === null || selectedIndex === undefined) {
@@ -396,12 +409,18 @@ function SelectionFollow({
     const activity = activities[selectedIndex];
     if (!activity) {
       onPopupReady(null);
+      if (isMobile && mobileListFocusNonce > lastProcessedListNonceRef.current) {
+        lastProcessedListNonceRef.current = mobileListFocusNonce;
+      }
       return;
     }
 
     const rowId = activityRowId(dayNumber, selectedIndex);
     if (removedIds.has(rowId)) {
       onPopupReady(null);
+      if (isMobile && mobileListFocusNonce > lastProcessedListNonceRef.current) {
+        lastProcessedListNonceRef.current = mobileListFocusNonce;
+      }
       return;
     }
 
@@ -409,23 +428,50 @@ function SelectionFollow({
     const lng = activity.lng;
     if (typeof lat !== 'number' || typeof lng !== 'number' || Number.isNaN(lat) || Number.isNaN(lng)) {
       onPopupReady(null);
+      if (isMobile && mobileListFocusNonce > lastProcessedListNonceRef.current) {
+        lastProcessedListNonceRef.current = mobileListFocusNonce;
+      }
       return;
     }
 
     if (!map) return;
 
-    onPopupReady(null);
+    if (!isMobile) {
+      onPopupReady(null);
+      map.panTo({ lat, lng });
+      map.setZoom(15);
+      const t = window.setTimeout(() => {
+        onPopupReady(selectedIndex);
+      }, 400);
+      return () => {
+        window.clearTimeout(t);
+      };
+    }
+
+    if (mobileListFocusNonce > lastProcessedListNonceRef.current) {
+      lastProcessedListNonceRef.current = mobileListFocusNonce;
+      onPopupReady(null);
+      const t = window.setTimeout(() => {
+        map.panTo({ lat, lng });
+        map.setZoom(16);
+      }, 150);
+      return () => {
+        window.clearTimeout(t);
+      };
+    }
+
     map.panTo({ lat, lng });
-    map.setZoom(15);
-
-    const t = window.setTimeout(() => {
-      onPopupReady(selectedIndex);
-    }, 400);
-
-    return () => {
-      window.clearTimeout(t);
-    };
-  }, [map, selectedIndex, activities, dayNumber, removedIds, onPopupReady]);
+    map.setZoom(16);
+  }, [
+    map,
+    selectedIndex,
+    activities,
+    dayNumber,
+    removedIds,
+    onPopupReady,
+    isMobile,
+    mobileListFocusNonce,
+  ]);
 
   return null;
 }
@@ -459,6 +505,8 @@ type MapInnerProps = {
   isMobile: boolean;
   centerLat?: number;
   centerLng?: number;
+  onDetailPanelOpenChange?: (open: boolean) => void;
+  mobileListFocusNonce: number;
 };
 
 function MapInner({
@@ -473,12 +521,24 @@ function MapInner({
   isMobile,
   centerLat,
   centerLng,
+  onDetailPanelOpenChange,
+  mobileListFocusNonce,
 }: MapInnerProps) {
   const [panelIndex, setPanelIndex] = useState<number | null>(null);
 
   useEffect(() => {
     setPanelIndex(null);
   }, [dayNumber]);
+
+  useEffect(() => {
+    if (selectedIndex === null || selectedIndex === undefined) {
+      setPanelIndex(null);
+    }
+  }, [selectedIndex]);
+
+  useEffect(() => {
+    onDetailPanelOpenChange?.(panelIndex != null);
+  }, [panelIndex, onDetailPanelOpenChange]);
 
   const markerEntries = useMemo(
     () => buildMarkerEntries(activities, dayNumber, removedIds),
@@ -548,6 +608,8 @@ function MapInner({
           dayNumber={dayNumber}
           removedIds={removedIds}
           onPopupReady={onPopupReady}
+          isMobile={isMobile}
+          mobileListFocusNonce={mobileListFocusNonce}
         />
         {markerEntries.map((entry) => (
           <MarkerPin
@@ -590,17 +652,7 @@ function MapInner({
       </GoogleMap>
 
       {panelMarker ? (
-        <>
-          {isMobile ? (
-            <button
-              type="button"
-              className="absolute inset-0 z-[1300] bg-black/45 backdrop-blur-[1px] transition-opacity"
-              onClick={handlePanelClose}
-              aria-label="Paneli kapat"
-            />
-          ) : null}
-          <PlaceDetailPanel marker={panelMarker} isMobile={isMobile} onClose={handlePanelClose} />
-        </>
+        <PlaceDetailPanel marker={panelMarker} isMobile={isMobile} onClose={handlePanelClose} />
       ) : null}
     </div>
   );
@@ -619,6 +671,8 @@ export function MapView({
   isMobile = false,
   centerLat,
   centerLng,
+  onDetailPanelOpenChange,
+  mobileListFocusNonce = 0,
 }: MapViewProps) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
 
@@ -651,6 +705,8 @@ export function MapView({
           isMobile={isMobile}
           centerLat={centerLat}
           centerLng={centerLng}
+          onDetailPanelOpenChange={onDetailPanelOpenChange}
+          mobileListFocusNonce={mobileListFocusNonce}
         />
       </APIProvider>
     </div>

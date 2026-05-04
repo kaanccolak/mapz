@@ -13,6 +13,8 @@ type DayCardProps = {
   onRestore: (id: string) => void;
   selectedActivityIndex: number | null;
   onActivitySelect: (index: number) => void;
+  /** Dar ekranda kartta harita ipucu (🗺️) */
+  showMapOnMobileHint?: boolean;
   /** Paylaşım görünümü: kaldır/geri yükle gizlenir */
   readOnly?: boolean;
 };
@@ -31,6 +33,7 @@ export function DayCard({
   onRestore,
   selectedActivityIndex,
   onActivitySelect,
+  showMapOnMobileHint = false,
   readOnly = false,
 }: DayCardProps) {
   const suppressTimes = !hasTicket && (dayIndex === 0 || dayIndex === totalDays - 1);
@@ -52,6 +55,7 @@ export function DayCard({
             onSelect={onActivitySelect}
             onRemove={onRemove}
             onRestore={onRestore}
+            showMapOnMobileHint={showMapOnMobileHint}
             readOnly={readOnly}
           />
         );
