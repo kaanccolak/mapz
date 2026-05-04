@@ -1,14 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type MouseEvent as ReactMouseEvent,
-} from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { AuthModal } from '@/components/AuthModal';
 import { ALLOWED_DEPARTURE_IATA } from '@/lib/departure-airports';
 import { searchDestinations, type Airport, type Destination } from '@/lib/destinations';
@@ -146,23 +139,15 @@ const normalize = (str: string) =>
     .replace(/ç/g, 'c')
     .replace(/ı/g, 'i');
 
-const PICKER_INPUT_STYLE: CSSProperties = {
-  width: '100%',
-  minWidth: 0,
-  minHeight: 44,
-  height: 44,
-  padding: '12px 16px',
-  background: 'rgba(255,255,255,0.06)',
-  border: '0.5px solid rgba(255,255,255,0.15)',
-  borderRadius: '10px',
-  color: '#ffffff',
-  fontSize: '14px',
-  colorScheme: 'dark',
-  cursor: 'pointer',
-};
-
 function openPickerOnClick(e: ReactMouseEvent<HTMLInputElement>) {
   void (e.target as HTMLInputElement).showPicker?.();
+}
+
+/** Uçuş saati: rakamlar, en fazla 4 hane; 2. haneden sonra otomatik ":" */
+function formatClockInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }
 
 type HeroSearchProps = {
@@ -385,9 +370,12 @@ export function HeroSearch({ onError }: HeroSearchProps) {
       onError?.('Lütfen kalkış şehri seçin.');
       return;
     }
-    if (hasTicket && (!arrivalTime || !departureTime)) {
-      onError?.('Biletiniz varsa gidiş iniş ve dönüş kalkış saatlerini girin.');
-      return;
+    if (hasTicket) {
+      const flightTimeOk = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s.trim());
+      if (!arrivalTime.trim() || !departureTime.trim() || !flightTimeOk(arrivalTime) || !flightTimeOk(departureTime)) {
+        onError?.('Biletiniz varsa gidiş iniş ve dönüş kalkış saatlerini ss:aa formatında girin (örn. 17:00).');
+        return;
+      }
     }
 
     if (getGezleQueryCount() >= MAX_TRIAL_PLANS) {
@@ -1090,27 +1078,35 @@ export function HeroSearch({ onError }: HeroSearchProps) {
                   </label>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="flex flex-col gap-1">
+                  <label className="flex min-w-0 flex-col gap-1">
                     <span className="text-[12px] text-[#5dcaa5]">Varış havalimanına iniş saatiniz</span>
                     <input
-                      type="time"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="örn. 17:00"
+                      pattern="[0-9]{2}:[0-9]{2}"
+                      maxLength={5}
                       value={arrivalTime}
-                      onChange={(e) => setArrivalTime(e.target.value)}
-                      onClick={openPickerOnClick}
-                      style={PICKER_INPUT_STYLE}
+                      onChange={(e) => setArrivalTime(formatClockInput(e.target.value))}
+                      className="h-11 w-full min-w-0 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-3 text-[15px] text-white placeholder:text-white/35 focus:border-[#1d9e75] focus:outline-none"
+                      style={{ colorScheme: 'dark' }}
                     />
-                    <span className="text-[11px] text-white/40">örn. 17:00</span>
                   </label>
-                  <label className="flex flex-col gap-1">
+                  <label className="flex min-w-0 flex-col gap-1">
                     <span className="text-[12px] text-[#5dcaa5]">Dönüş havalimanından kalkış saatiniz</span>
                     <input
-                      type="time"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="örn. 14:00"
+                      pattern="[0-9]{2}:[0-9]{2}"
+                      maxLength={5}
                       value={departureTime}
-                      onChange={(e) => setDepartureTime(e.target.value)}
-                      onClick={openPickerOnClick}
-                      style={PICKER_INPUT_STYLE}
+                      onChange={(e) => setDepartureTime(formatClockInput(e.target.value))}
+                      className="h-11 w-full min-w-0 rounded-[10px] border border-white/10 bg-[#0a0a0f]/40 px-3 text-[15px] text-white placeholder:text-white/35 focus:border-[#1d9e75] focus:outline-none"
+                      style={{ colorScheme: 'dark' }}
                     />
-                    <span className="text-[11px] text-white/40">örn. 14:00</span>
                   </label>
                 </div>
               </div>

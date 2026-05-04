@@ -86,7 +86,7 @@ export function normalizeStoredReservationData(raw: unknown): ReservationData {
 }
 
 const modalShellClass =
-  'flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111118] shadow-xl';
+  'flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111118] shadow-xl';
 
 const labelClass = 'mb-1 block text-[12px] font-medium text-white/50';
 const inputClass =
@@ -291,7 +291,7 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
         aria-labelledby="reservation-modal-title"
       >
         <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-[#111118] px-4 py-3 sm:px-6 sm:py-4">
-          <h2 id="reservation-modal-title" className="min-w-0 flex-1 text-[15px] font-semibold text-white">
+          <h2 id="reservation-modal-title" className="min-w-0 flex-1 pr-2 text-[15px] font-semibold text-white">
             🎫 Rezervasyonlarım
           </h2>
           <button
@@ -304,10 +304,10 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 pb-3 pt-3 sm:px-6 sm:pb-4 sm:pt-4">
           <section className="mb-6">
-          <h3 className="mb-3 text-[13px] font-semibold text-[#5dcaa5]">✈️ Uçuş Bilgileri</h3>
-          <div className="flex flex-col gap-3">
+            <h3 className="mb-3 text-[13px] font-semibold text-[#5dcaa5]">✈️ Uçuş Bilgileri</h3>
+            <div className="flex flex-col gap-3">
             <FlightLegCard
               title="GİDİŞ"
               leg={outbound}
@@ -347,11 +347,11 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
                 </div>
               </div>
             </div>
-          </div>
+            </div>
           </section>
 
           <section className="mb-2">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-[13px] font-semibold text-[#5dcaa5]">🏨 Otel Bilgileri</h3>
             <button
               type="button"
@@ -360,13 +360,13 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
             >
               + Otel Ekle
             </button>
-          </div>
+            </div>
 
-          {draft.hotels.length === 0 ? (
+            {draft.hotels.length === 0 ? (
             <p className="rounded-lg border border-dashed border-white/10 bg-white/[0.02] py-6 text-center text-[12px] text-white/35">
               Henüz otel eklenmedi. «+ Otel Ekle» ile ekleyin.
             </p>
-          ) : (
+            ) : (
             <div className="space-y-4">
               {draft.hotels.map((h, idx) => (
                 <div
@@ -446,13 +446,15 @@ export function ReservationModal({ open, onClose, reservationData, onSave }: Pro
                 </div>
               ))}
             </div>
-          )}
+            )}
           </section>
+        </div>
 
+        <div className="flex shrink-0 border-t border-white/10 bg-[#111118] px-4 py-3 sm:px-6 sm:py-4">
           <button
             type="button"
             onClick={handleSave}
-            className="mt-4 w-full rounded-[10px] bg-[#1d9e75] py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-95 active:opacity-90"
+            className="w-full rounded-[10px] bg-[#1d9e75] py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-95 active:opacity-90"
           >
             Kaydet
           </button>
