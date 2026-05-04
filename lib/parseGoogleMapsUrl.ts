@@ -11,7 +11,7 @@ function num(x: string): number | undefined {
 
 /** google.com/url?q=... ve consent continue= sarmalayıcılarını aç */
 export function unwrapGoogleRedirectUrl(url: string): string {
-  let s = url.trim();
+  const s = url.trim();
   try {
     const u = new URL(s);
     if (u.hostname === 'www.google.com' && u.pathname === '/url') {
